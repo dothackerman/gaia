@@ -1,33 +1,68 @@
-# Community Chain
+# GAIA
 
-A private, standalone Substrate-based blockchain built as the backbone for a member-based community.
+A private, standalone Substrate blockchain for community self-governance.
 
-## What is this?
+## What is GAIA?
 
-Community Chain is a solochain (not a parachain) that gives a closed community a shared on-chain ledger to manage collective resources — no central authority, no shared security dependency, just the members themselves.
+GAIA gives a closed community its own sovereign chain — no central authority,
+no relay-chain dependency, just the members themselves. Members pay annual fees
+into a shared treasury, propose how to spend those funds, and vote with equal
+weight. When a proposal passes, the treasury disburses automatically.
 
-## Core domain concepts
+It is a solochain, not a parachain. The community controls its own consensus,
+upgrades, and governance without external dependencies.
 
-**Member** — A registered participant of the community. Membership is an on-chain record, not a token. In this early prototype, initial members are hardcoded at genesis. Only active members may vote on proposals.
+## How it works
 
-**Community Token** — The single fungible asset that represents value within the network. Used to fund the treasury and denominate proposal budgets.
+```
+Member fees ──▸ Treasury ◂── approved proposals draw from here
+                   ▲
+                   │
+ Proposals: submit → vote → tally → execute (once)
+```
 
-**Treasury** — A community-owned pool of tokens funded by annual member fees. The treasury never disburses funds unless a proposal is explicitly approved. Its balance can never go negative.
+1. **Members** register on-chain. Only active members can submit proposals and
+   vote.
+2. **Treasury** collects fees and holds the community's funds. Its balance can
+   never go negative.
+3. **Proposals** let any active member request a spend. All members vote with
+   equal weight. An approved proposal triggers a one-time treasury
+   disbursement.
 
-**Proposal** — A formal spending request submitted by any active member. A proposal describes the purpose, the requested amount, and is subject to a collective vote.
+## Key concepts
 
-**Vote** — Every active member has equal voting power. When a proposal reaches the required approval threshold the treasury releases the requested funds. Each proposal can only be executed once.
-
-## Architecture overview
-
-Three pallets carry the core logic:
-
-| Pallet | Responsibility |
+| Term | Meaning |
 |---|---|
-| `membership` | Tracks active members; gates participation in voting |
-| `treasury` | Holds community funds; enforces balance invariants |
-| `proposals` | Lifecycle of a spending proposal from submission to execution |
+| Member | An on-chain participant — a storage record, not a token |
+| Community Token | The single fungible asset used for fees and proposals |
+| Treasury | The community-owned pool of tokens |
+| Proposal | A formal spending request subject to member vote |
+| Vote | One member, one equal-weight signal (for or against) |
+
+## Domain model
+
+For a deeper look at the problem domain and requirements engineering, see
+[`docs/domain-model.md`](docs/domain-model.md) — includes a full Mermaid class
+diagram of the *Fachdomäne*.
+
+## Project structure
+
+| Directory | Purpose |
+|---|---|
+| `pallets/membership/` | Member registry — who is active |
+| `pallets/treasury/` | Community funds — deposits and disbursements |
+| `pallets/proposals/` | Proposal lifecycle — submit, vote, execute |
+| `runtime/` | Wires pallets into a Substrate runtime |
+| `node/` | Substrate node binary |
+| `docs/` | Architecture decisions and build status |
 
 ## Status
 
-> ⚠️ **Early prototype.** No runtime code has been written yet. Node template not initialised. All pallets are stubs. See [`docs/current-state.md`](docs/current-state.md) for the live build status.
+> **Early prototype.** All pallets are stubs — no runtime code written yet.
+> See [`docs/current-state.md`](docs/current-state.md) for detailed build status.
+
+## For AI agents
+
+If you are an AI coding agent, read [`AGENTS.md`](AGENTS.md) before writing
+any code. It contains invariants, conventions, and constraints that govern all
+contributions to this repository.
