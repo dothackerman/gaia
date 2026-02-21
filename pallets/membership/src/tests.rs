@@ -1,14 +1,10 @@
 use crate::mock::*;
 use crate::pallet::{
 	ActiveMemberCount, CandidateApprovalCount, CandidateVotes, Candidates,
-	MemberStatus, Members, MAX_NAME_LEN,
+	MemberStatus, Members,
 };
 use crate::{Error, Event, MembershipChecker};
-use frame_support::{assert_noop, assert_ok, BoundedVec};
-
-fn bounded_name(name: &[u8]) -> BoundedVec<u8, frame_support::traits::ConstU32<MAX_NAME_LEN>> {
-	BoundedVec::try_from(name.to_vec()).expect("name within bounds")
-}
+use frame_support::{assert_noop, assert_ok};
 
 // ---------------------------------------------------------------------------
 // Genesis sanity

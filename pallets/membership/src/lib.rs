@@ -322,7 +322,9 @@ pub mod pallet {
 			Members::<T>::insert(candidate, record);
 			ActiveMemberCount::<T>::mutate(|c| *c = c.saturating_add(1));
 
-			// Clean up votes for this candidate.
+			// Clean up votes for this candidate. The result is intentionally
+			// ignored: the candidate key is already removed, so any stale vote
+			// entries are unreachable and harmless.
 			let _ = CandidateVotes::<T>::clear_prefix(candidate, u32::MAX, None);
 			CandidateApprovalCount::<T>::remove(candidate);
 

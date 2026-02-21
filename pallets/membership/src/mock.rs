@@ -47,7 +47,7 @@ pub const DAVE: u64 = 4;
 /// Candidate account.
 pub const EVE: u64 = 5;
 
-fn bounded_name(name: &[u8]) -> BoundedVec<u8, frame_support::traits::ConstU32<MAX_NAME_LEN>> {
+pub fn bounded_name(name: &[u8]) -> BoundedVec<u8, frame_support::traits::ConstU32<MAX_NAME_LEN>> {
 	BoundedVec::try_from(name.to_vec()).expect("name within bounds")
 }
 
