@@ -40,6 +40,7 @@ Last updated: 2026-02-21 — Membership pallet implemented. `cargo check`, `carg
 | `cargo check` | pass (2026-02-21) |
 | `cargo clippy` | pass — zero warnings in GAIA-owned code (2026-02-21) |
 | `cargo test -p gaia-membership` | pass — 19/19 (2026-02-21) |
+| `cargo deny check licenses` | pass — all dependencies compliant (2026-02-21) |
 | `cargo build` | not run |
 
 ## Upstream Warnings
