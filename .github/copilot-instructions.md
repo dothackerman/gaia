@@ -39,3 +39,24 @@ Significant decisions include (but are not limited to):
 - Changing the token economics model
 - Adding or removing a pallet
 - Altering any of the invariants listed in `AGENTS.md`
+
+## Post-Build Output Analysis
+
+After every cargo command that produces output, classify all warnings before proceeding:
+
+**Auto-fix immediately** (do not ask, just fix):
+- unused parentheses
+- unused variables
+- unused imports
+- clippy suggestions with a clear `help:` line
+
+**Log to `docs/current-state.md`** (do not fix, just record):
+- upstream dependency warnings (code you do not own)
+- future Rust rejection warnings on external crates
+- architecture or cycle detection output from the overseer
+
+**Create ADR in `docs/decisions/`** (next available number):
+- new build target recommendations (e.g. wasm32v1-none migration)
+- any warning that implies a required future action on GAIA code
+
+**Never silently ignore a warning.** Every warning is either fixed, logged, or recorded as a decision. If classification is ambiguous, log it to `current-state.md` and flag it to the operator.
