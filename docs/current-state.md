@@ -34,3 +34,8 @@ Last updated: 2026-02-21 — Imported the polkadot-sdk-solochain-template and re
 | `cargo clippy` | not run |
 | `cargo test` | not run |
 | `cargo build` | not run |
+
+## Upstream Warnings
+
+- 2026-02-21 — `polkadot-overseer`: cycle detection output during build ("Found 3 strongly connected components which includes at least one cycle each").
+- 2026-02-21 — `trie-db v0.30.0`: future-incompatibility warning (may be rejected by a future version of Rust). Consider running `cargo report future-incompatibilities --id 1`.
