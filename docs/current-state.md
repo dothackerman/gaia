@@ -1,40 +1,36 @@
 # Current build state
 
-Last updated: initial scaffold — no code written yet.
+Last updated: 2026-02-21 — Imported the polkadot-sdk-solochain-template and renamed the project to GAIA. `cargo check` passes with no errors.
 
 ## Node (`node/`)
 
-- Status: **stub** — directory placeholder only
-- Node template not yet initialised
+- Status: **imported** — node crate present (from solochain template)
 
 ## Runtime (`runtime/`)
 
-- Status: **stub** — directory placeholder only
-- No runtime crate created
+- Status: **imported** — runtime crate present (from solochain template)
+
+## Pallet: template (`pallets/template/`)
+
+- Status: **imported** — template pallet present (from solochain template)
 
 ## Pallet: membership (`pallets/membership/`)
 
-- Status: **stub** — directory placeholder only
-- No pallet crate created
-- No extrinsics, storage, or events defined
+- Status: **not created yet**
 
 ## Pallet: treasury (`pallets/treasury/`)
 
-- Status: **stub** — directory placeholder only
-- No pallet crate created
-- No extrinsics, storage, or events defined
+- Status: **not created yet**
 
 ## Pallet: proposals (`pallets/proposals/`)
 
-- Status: **stub** — directory placeholder only
-- No pallet crate created
-- No extrinsics, storage, or events defined
+- Status: **not created yet**
 
 ## Build status
 
 | Command | Status |
 |---|---|
-| `cargo check` | n/a — no Cargo workspace yet |
-| `cargo clippy` | n/a |
-| `cargo test` | n/a |
-| `cargo build` | n/a |
+| `cargo check` | pass (2026-02-21) |
+| `cargo clippy` | not run |
+| `cargo test` | not run |
+| `cargo build` | not run |

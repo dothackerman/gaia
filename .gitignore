@@ -1,0 +1,23 @@
+# Rust
+debug/
+target/
+**/*.rs.bk
+*.pdb
+
+# Cargo.lock is committed — GAIA is a binary project, not a library
+
+# Editor
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Copilot agent worktrees
+*.worktrees/
+
+# Temporary import directories
+.solochain-template/
+
+# Local chain data
+/chain-data/
