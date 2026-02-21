@@ -25,7 +25,26 @@ ADR: create one ADR per distinct decision in `docs/decisions/` with the next ava
 
 OPERATOR: list all ambiguous warnings clearly and halt. Do not proceed until operator provides classification.
 
-**Step 3 — Commit** all changes with message:
+**Step 3 - License Audit:**
+
+Run license audit with:
+```bash
+cargo deny check licenses -A parse-error > cargo-deny-licenses.log 2>&1
+code=$?
+echo "exit=$code"
+tail -n 25 cargo-deny-licenses.log | sed -e 's/\x1b\[[0-9;]*m//g'
+```
+
+The `-A parse-error` flag is intentional and must not be removed. It tolerates upstream crates that ship non-SPDX license strings — malformed formatting in a dependency you do not own. It does not suppress actual license violations.
+
+Classify the output as follows:
+- `exit=0` — audit passes, log to `current-state.md` as clean with date
+- `exit=1` with a license violation — classify as OPERATOR, halt and report
+- `exit=1` with only parse errors — something changed upstream, investigate before proceeding
+
+Never treat a non-zero exit code as ignorable without reading the tail output first.
+
+**Step 4 — Commit** all changes with message:
 `chore: post-build analysis and warning classification [date]`
 
 Only commit if `cargo check` is clean after AUTO_FIX changes.
