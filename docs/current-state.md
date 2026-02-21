@@ -1,6 +1,6 @@
 # Current build state
 
-Last updated: 2026-02-21 — Imported the polkadot-sdk-solochain-template and renamed the project to GAIA. `cargo check` passes with no errors.
+Last updated: 2026-02-21 — Relicensed GAIA to GPL-3.0-or-later. `cargo check` passes with no errors.
 
 ## Node (`node/`)
 
@@ -38,4 +38,5 @@ Last updated: 2026-02-21 — Imported the polkadot-sdk-solochain-template and re
 ## Upstream Warnings
 
 - 2026-02-21 — `polkadot-overseer`: cycle detection output during build ("Found 3 strongly connected components which includes at least one cycle each").
+- 2026-02-21 — WASM runtime build target recommendation: `wasm32v1-none` is supported in Rust >= 1.84 (see `docs/decisions/003-wasm32v1-none-target.md`).
 - 2026-02-21 — `trie-db v0.30.0`: future-incompatibility warning (may be rejected by a future version of Rust). Consider running `cargo report future-incompatibilities --id 1`.

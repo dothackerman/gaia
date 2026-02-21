@@ -1,5 +1,5 @@
 [workspace.package]
-license = "MIT-0"
+license = "GPL-3.0-or-later"
 authors = ["Parity Technologies <admin@parity.io>"]
 homepage = "https://paritytech.github.io/polkadot-sdk/"
 repository = "https://github.com/paritytech/polkadot-sdk-solochain-template.git"

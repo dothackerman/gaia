@@ -2,7 +2,7 @@
 name = "gaia-runtime"
 description = "A solochain runtime template built with Substrate, part of Polkadot Sdk."
 version = "0.1.0"
-license = "Unlicense"
+license = "GPL-3.0-or-later"
 authors.workspace = true
 homepage.workspace = true
 repository.workspace = true
