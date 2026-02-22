@@ -29,6 +29,7 @@ docs/
 .github/
   copilot-instructions.md          # GitHub Copilot session rules (references this file)
   agents/
+    post-build.md                  # Post-build warning-classification workflow
     security-upgrade.md            # Runbook for security dependency upgrades
 .codex/
   instructions.md                  # Codex session rules (mirrors Copilot setup)
