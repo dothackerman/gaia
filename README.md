@@ -66,3 +66,6 @@ diagram of the *Fachdomäne*.
 If you are an AI coding agent, read [`AGENTS.md`](AGENTS.md) before writing
 any code. It contains invariants, conventions, and constraints that govern all
 contributions to this repository.
+
+Codex sessions should also load [`.codex/instructions.md`](.codex/instructions.md)
+to mirror the same operating rules used by GitHub Copilot agent sessions.
