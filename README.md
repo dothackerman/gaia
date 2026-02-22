@@ -58,8 +58,9 @@ diagram of the *Fachdomäne*.
 
 ## Status
 
-> **Early prototype.** All pallets are stubs — no runtime code written yet.
-> See [`docs/current-state.md`](docs/current-state.md) for detailed build status.
+> **Active scaffold.** `membership` is implemented and wired in runtime.
+> `treasury` and `proposals` are scaffolded and runtime-wired, pending full implementation.
+> See [`docs/current-state.md`](docs/current-state.md) for the latest detailed status.
 
 ## For AI agents
 

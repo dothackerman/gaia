@@ -39,6 +39,8 @@ Last updated: 2026-02-22 — Structural scaffolding for parallel pallet developm
 - Status: **created (stub scaffold)**
 - Crate name: `gaia-proposals`
 - Runtime integration: wired
+- Interface ownership: defines downstream cross-pallet traits `MembershipChecker` and `TreasuryHandler`
+- Runtime adapters: wired in `runtime/src/configs/proposals.rs`
 - Notes: no storage/dispatchables yet (intended for parallel implementation)
 
 ## Build status
@@ -53,6 +55,7 @@ Last updated: 2026-02-22 — Structural scaffolding for parallel pallet developm
 
 ## Upstream Warnings
 
+- 2026-02-22 — Node template clippy warnings (`clippy::result_large_err`) in `node/` (benchmarking/command/service/main). Treated as template-origin warnings for now.
 - 2026-02-21 — `polkadot-overseer`: cycle detection output during build ("Found 3 strongly connected components which includes at least one cycle each").
 - 2026-02-21 — WASM runtime build target recommendation: `wasm32v1-none` is supported in Rust >= 1.84 (see `docs/decisions/003-wasm32v1-none-target.md`).
 - 2026-02-21 — `trie-db v0.30.0`: future-incompatibility warning (may be rejected by a future version of Rust). Consider running `cargo report future-incompatibilities --id 1`.

@@ -36,12 +36,12 @@ docs/
   agents/
     post-build.md                  # Post-build warning-classification workflow
     security-upgrade.md            # Security dependency-upgrade runbook
-node/                              # Substrate node binary (stub)
-runtime/                           # Runtime crate — wires pallets together (stub)
+node/                              # Substrate node binary
+runtime/                           # Runtime crate — wires pallets together
 pallets/
-  membership/                      # Pallet: member registry (stub)
-  treasury/                        # Pallet: community fund (stub)
-  proposals/                       # Pallet: spending proposals + voting (stub)
+  membership/                      # Pallet: member registry (implemented)
+  treasury/                        # Pallet: community fund (scaffold)
+  proposals/                       # Pallet: spending proposals + voting (scaffold)
 ```
 
 ## 3. Three-pallet architecture
