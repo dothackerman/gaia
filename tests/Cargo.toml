@@ -1,0 +1,22 @@
+[package]
+name = "gaia-integration-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+gaia-runtime = { workspace = true, features = ["std"] }
+gaia-membership = { workspace = true, features = ["std"] }
+gaia-treasury = { workspace = true, features = ["std"] }
+gaia-proposals = { workspace = true, features = ["std"] }
+frame-support = { workspace = true, features = ["std"] }
+frame-system = { workspace = true, features = ["std"] }
+sp-runtime = { workspace = true, features = ["std"] }
+sp-io = { workspace = true, features = ["std"] }
+sp-core = { workspace = true, features = ["std"] }
+sp-keyring = { workspace = true, features = ["std"] }
+pallet-balances = { workspace = true, features = ["std"] }
+codec = { workspace = true, features = ["std"] }
+
+[lib]
+path = "src/lib.rs"

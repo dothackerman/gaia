@@ -1,6 +1,6 @@
 # Current build state
 
-Last updated: 2026-02-22 — `treasury` pallet implemented with real balance transfers. `cargo check`, `cargo clippy`, `cargo test`, and `cargo build` pass.
+Last updated: 2026-02-22 — membership suspension flows implemented, proposal execution restricted to organizer, treasury genesis endowed, and integration-test crate scaffolded.
 
 ## Node (`node/`)
 
@@ -69,3 +69,12 @@ Last updated: 2026-02-22 — `treasury` pallet implemented with real balance tra
 - 2026-02-21 — `polkadot-overseer`: cycle detection output during build ("Found 3 strongly connected components which includes at least one cycle each").
 - 2026-02-21 — WASM runtime build target recommendation: `wasm32v1-none` is supported in Rust >= 1.84 (see `docs/decisions/003-wasm32v1-none-target.md`).
 - 2026-02-21 — `trie-db v0.30.0`: future-incompatibility warning (may be rejected by a future version of Rust). Consider running `cargo report future-incompatibilities --id 1`.
+
+
+## Latest changes (this branch)
+
+- `proposals`: `execute_proposal` now enforces organizer-only execution via `NotOrganizer` error.
+- `membership`: added `suspend_self` and `vote_suspend_member` dispatchables, suspension vote storage, suspension events/reasons, and related errors.
+- `runtime genesis`: treasury sovereign account is now endowed in genesis balances.
+- Added workspace integration test crate at `tests/` for cross-pallet runtime verification.
+- Legacy pallet unit tests are now marked `#[ignore]` and remain runnable with `cargo test -- --ignored`.
