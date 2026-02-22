@@ -73,7 +73,7 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub(crate) fn account_id() -> T::AccountId {
+        pub fn account_id() -> T::AccountId {
             T::PalletId::get().into_account_truncating()
         }
 
@@ -83,13 +83,8 @@ pub mod pallet {
             let new_balance = TreasuryBalance::<T>::get()
                 .checked_add(&amount)
                 .ok_or(Error::<T>::BalanceOverflow)?;
-            T::NativeBalance::transfer(
-                from,
-                &Self::account_id(),
-                amount,
-                Preservation::Preserve,
-            )
-            .map_err(|_| Error::<T>::InsufficientFunds)?;
+            T::NativeBalance::transfer(from, &Self::account_id(), amount, Preservation::Preserve)
+                .map_err(|_| Error::<T>::InsufficientFunds)?;
             TreasuryBalance::<T>::put(new_balance);
             Self::deposit_event(Event::FeeDeposited {
                 from: from.clone(),
@@ -105,13 +100,8 @@ pub mod pallet {
             let new_balance = TreasuryBalance::<T>::get()
                 .checked_sub(&amount)
                 .ok_or(Error::<T>::InsufficientFunds)?;
-            T::NativeBalance::transfer(
-                &Self::account_id(),
-                to,
-                amount,
-                Preservation::Expendable,
-            )
-            .map_err(|_| Error::<T>::InsufficientFunds)?;
+            T::NativeBalance::transfer(&Self::account_id(), to, amount, Preservation::Expendable)
+                .map_err(|_| Error::<T>::InsufficientFunds)?;
             TreasuryBalance::<T>::put(new_balance);
             Self::deposit_event(Event::Disbursed {
                 to: to.clone(),

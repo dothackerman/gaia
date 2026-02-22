@@ -3213,6 +3213,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "gaia-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "gaia-membership",
+ "gaia-proposals",
+ "gaia-runtime",
+ "gaia-treasury",
+ "pallet-balances",
+ "parity-scale-codec",
+ "sp-core",
+ "sp-io",
+ "sp-keyring",
+ "sp-runtime",
+]
+
+[[package]]
 name = "gaia-membership"
 version = "0.1.0"
 dependencies = [

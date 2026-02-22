@@ -22,7 +22,7 @@ classDiagram
     }
 
     class Member {
-        status: pending | active | suspended
+        status: active | suspended
         joinedAt
         votingPower: always 1
     }
@@ -44,7 +44,7 @@ classDiagram
         requestedAmount
         organizer
         eventDate
-        status: draft | active | approved | rejected | executed | disputed
+        status: active | approved | rejected | executed
     }
 
     class Vote {
@@ -82,7 +82,7 @@ classDiagram
 | **Member** | A storage record, not a token. The record itself *is* the proof of voting rights. |
 | **CommunityToken** | The only true token in the system. Everything else (members, proposals, votes) is a data record. |
 | **Treasury** | Always denominated in CommunityToken. Balance invariant: never negative. |
-| **Proposal** | A lifecycle entity (draft → active → approved/rejected → executed). Never a token. |
+| **Proposal** | A lifecycle entity (active → approved/rejected → executed). Never a token. |
 | **Vote** | One signal per member per proposal. Equal weight — no quadratic or stake-weighted voting. |
 | **MemberFeePayment** | The funding mechanism: member fees flow into the treasury, proposals flow out. |
 
@@ -95,3 +95,9 @@ classDiagram
   secondary staking or reward token.
 - **Records over tokens.** Members, proposals, and votes are storage records
   with lifecycle states — not NFTs, not transferable assets.
+- **Implementation simplifications vs. domain.** The domain describes a
+  `pending` member status and `draft`/`disputed` proposal states as aspirational
+  concepts. The current implementation omits them: candidates awaiting admission
+  are stored separately in `Candidates` storage (not as `pending` members), and
+  proposals are submitted directly into the `Active` state with no draft or
+  dispute phase.

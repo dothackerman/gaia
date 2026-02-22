@@ -35,315 +35,444 @@ mod tests;
 /// The runtime wires a concrete implementation; downstream pallets
 /// depend only on this trait, never on the membership pallet directly.
 pub trait MembershipChecker<AccountId> {
-	fn is_active_member(account: &AccountId) -> bool;
+    fn is_active_member(account: &AccountId) -> bool;
 }
 
 #[frame_support::pallet]
 pub mod pallet {
-	use super::*;
-	use frame_support::pallet_prelude::*;
-	use frame_system::pallet_prelude::*;
+    use super::*;
+    use frame_support::pallet_prelude::*;
+    use frame_system::pallet_prelude::*;
 
-	/// Maximum length of a member name in bytes.
-	pub const MAX_NAME_LEN: u32 = 128;
+    /// Maximum length of a member name in bytes.
+    pub const MAX_NAME_LEN: u32 = 128;
 
-	/// Status of a member.
-	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-	pub enum MemberStatus {
-		Active,
-		Suspended,
-	}
+    /// Status of a member.
+    #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+    pub enum MemberStatus {
+        Active,
+        Suspended,
+    }
 
-	/// On-chain record for a registered member.
-	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-	#[scale_info(skip_type_params(T))]
-	pub struct MemberRecord<T: Config> {
-		pub name: BoundedVec<u8, ConstU32<MAX_NAME_LEN>>,
-		pub status: MemberStatus,
-		pub joined_at: BlockNumberFor<T>,
-	}
+    /// Reason why a member was suspended.
+    #[derive(
+        Clone,
+        Encode,
+        Decode,
+        DecodeWithMemTracking,
+        Eq,
+        PartialEq,
+        RuntimeDebug,
+        TypeInfo,
+        MaxEncodedLen,
+    )]
+    pub enum SuspensionReason {
+        SelfInitiated,
+        PeerVote,
+    }
 
-	/// Pending candidate awaiting approval votes.
-	#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
-	#[scale_info(skip_type_params(T))]
-	pub struct CandidateRecord<T: Config> {
-		pub name: BoundedVec<u8, ConstU32<MAX_NAME_LEN>>,
-		pub proposed_by: T::AccountId,
-		pub proposed_at: BlockNumberFor<T>,
-	}
+    /// On-chain record for a registered member.
+    #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+    #[scale_info(skip_type_params(T))]
+    pub struct MemberRecord<T: Config> {
+        pub name: BoundedVec<u8, ConstU32<MAX_NAME_LEN>>,
+        pub status: MemberStatus,
+        pub joined_at: BlockNumberFor<T>,
+    }
 
-	#[pallet::pallet]
-	pub struct Pallet<T>(_);
+    /// Pending candidate awaiting approval votes.
+    #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+    #[scale_info(skip_type_params(T))]
+    pub struct CandidateRecord<T: Config> {
+        pub name: BoundedVec<u8, ConstU32<MAX_NAME_LEN>>,
+        pub proposed_by: T::AccountId,
+        pub proposed_at: BlockNumberFor<T>,
+    }
 
-	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		/// The overarching runtime event type.
-		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-	}
+    #[pallet::pallet]
+    pub struct Pallet<T>(_);
 
-	// ---------------------------------------------------------------------------
-	// Storage
-	// ---------------------------------------------------------------------------
+    #[pallet::config]
+    pub trait Config: frame_system::Config {
+        /// The overarching runtime event type.
+        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+    }
 
-	/// Map of registered members keyed by account id.
-	#[pallet::storage]
-	pub type Members<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, MemberRecord<T>, OptionQuery>;
+    // ---------------------------------------------------------------------------
+    // Storage
+    // ---------------------------------------------------------------------------
 
-	/// Number of currently active members.
-	#[pallet::storage]
-	pub type ActiveMemberCount<T: Config> = StorageValue<_, u32, ValueQuery>;
+    /// Map of registered members keyed by account id.
+    #[pallet::storage]
+    pub type Members<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, MemberRecord<T>, OptionQuery>;
 
-	/// Map of pending candidates keyed by candidate account id.
-	#[pallet::storage]
-	pub type Candidates<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, CandidateRecord<T>, OptionQuery>;
+    /// Number of currently active members.
+    #[pallet::storage]
+    pub type ActiveMemberCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
-	/// Votes cast for a candidate. `(candidate, voter) -> approved`.
-	#[pallet::storage]
-	pub type CandidateVotes<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		T::AccountId,
-		Blake2_128Concat,
-		T::AccountId,
-		bool,
-		OptionQuery,
-	>;
+    /// Map of pending candidates keyed by candidate account id.
+    #[pallet::storage]
+    pub type Candidates<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, CandidateRecord<T>, OptionQuery>;
 
-	/// Number of approval votes received by each candidate.
-	#[pallet::storage]
-	pub type CandidateApprovalCount<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
+    /// Votes cast for a candidate. `(candidate, voter) -> approved`.
+    #[pallet::storage]
+    pub type CandidateVotes<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        Blake2_128Concat,
+        T::AccountId,
+        bool,
+        OptionQuery,
+    >;
 
-	// ---------------------------------------------------------------------------
-	// Genesis
-	// ---------------------------------------------------------------------------
+    /// Number of approval votes received by each candidate.
+    #[pallet::storage]
+    pub type CandidateApprovalCount<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
-	#[pallet::genesis_config]
-	#[derive(frame_support::DefaultNoBound)]
-	pub struct GenesisConfig<T: Config> {
-		/// Initial members seeded at genesis: `(account, name_bytes)`.
-		pub initial_members: sp_runtime::BoundedVec<
-			(T::AccountId, BoundedVec<u8, ConstU32<MAX_NAME_LEN>>),
-			ConstU32<100>,
-		>,
-	}
+    /// Suspension votes cast per target member and voter.
+    #[pallet::storage]
+    pub type SuspensionVotes<T: Config> = StorageDoubleMap<
+        _,
+        Blake2_128Concat,
+        T::AccountId,
+        Blake2_128Concat,
+        T::AccountId,
+        bool,
+        OptionQuery,
+    >;
 
-	#[pallet::genesis_build]
-	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
-		fn build(&self) {
-			let mut count = 0u32;
-			for (account, name) in &self.initial_members {
-				let record = MemberRecord::<T> {
-					name: name.clone(),
-					status: MemberStatus::Active,
-					joined_at: BlockNumberFor::<T>::default(),
-				};
-				Members::<T>::insert(account, record);
-				count = count.saturating_add(1);
-			}
-			ActiveMemberCount::<T>::put(count);
-		}
-	}
+    /// Number of approval votes received by each suspension target.
+    #[pallet::storage]
+    pub type SuspensionApprovalCount<T: Config> =
+        StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
-	// ---------------------------------------------------------------------------
-	// Events
-	// ---------------------------------------------------------------------------
+    // ---------------------------------------------------------------------------
+    // Genesis
+    // ---------------------------------------------------------------------------
 
-	#[pallet::event]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
-		/// A candidate has been proposed for membership.
-		CandidateProposed {
-			candidate: T::AccountId,
-			proposed_by: T::AccountId,
-		},
-		/// An active member has voted on a candidate.
-		VoteCast {
-			candidate: T::AccountId,
-			voter: T::AccountId,
-			approve: bool,
-		},
-		/// A candidate has been approved and is now an active member.
-		MemberApproved {
-			member: T::AccountId,
-		},
-	}
+    #[pallet::genesis_config]
+    #[derive(frame_support::DefaultNoBound)]
+    pub struct GenesisConfig<T: Config> {
+        /// Initial members seeded at genesis: `(account, name_bytes)`.
+        pub initial_members: sp_runtime::BoundedVec<
+            (T::AccountId, BoundedVec<u8, ConstU32<MAX_NAME_LEN>>),
+            ConstU32<100>,
+        >,
+    }
 
-	// ---------------------------------------------------------------------------
-	// Errors
-	// ---------------------------------------------------------------------------
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            let mut count = 0u32;
+            for (account, name) in &self.initial_members {
+                let record = MemberRecord::<T> {
+                    name: name.clone(),
+                    status: MemberStatus::Active,
+                    joined_at: BlockNumberFor::<T>::default(),
+                };
+                Members::<T>::insert(account, record);
+                count = count.saturating_add(1);
+            }
+            ActiveMemberCount::<T>::put(count);
+        }
+    }
 
-	#[pallet::error]
-	pub enum Error<T> {
-		/// The caller is not a registered active member.
-		NotActiveMember,
-		/// The candidate is already a registered member.
-		AlreadyMember,
-		/// A proposal for this candidate already exists.
-		CandidateAlreadyProposed,
-		/// No pending proposal exists for this candidate.
-		CandidateNotFound,
-		/// The voter has already cast a vote for this candidate.
-		AlreadyVoted,
-		/// The supplied name exceeds the maximum allowed length.
-		NameTooLong,
-		/// The caller is suspended and cannot perform this action.
-		MemberSuspended,
-	}
+    // ---------------------------------------------------------------------------
+    // Events
+    // ---------------------------------------------------------------------------
 
-	// ---------------------------------------------------------------------------
-	// Dispatchables
-	// ---------------------------------------------------------------------------
+    #[pallet::event]
+    #[pallet::generate_deposit(pub(super) fn deposit_event)]
+    pub enum Event<T: Config> {
+        /// A candidate has been proposed for membership.
+        CandidateProposed {
+            candidate: T::AccountId,
+            proposed_by: T::AccountId,
+        },
+        /// An active member has voted on a candidate.
+        VoteCast {
+            candidate: T::AccountId,
+            voter: T::AccountId,
+            approve: bool,
+        },
+        /// A candidate has been approved and is now an active member.
+        MemberApproved { member: T::AccountId },
+        /// A suspension vote was cast for a target member.
+        SuspensionVoteCast {
+            target: T::AccountId,
+            voter: T::AccountId,
+            approve: bool,
+        },
+        /// A member has been suspended.
+        MemberSuspended {
+            member: T::AccountId,
+            reason: SuspensionReason,
+        },
+    }
 
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {
-		/// Propose a new candidate for membership.
-		///
-		/// The caller must be an active member. The candidate must not already
-		/// be a member or have a pending proposal.
-		#[pallet::call_index(0)]
-		#[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(3, 2))]
-		pub fn propose_member(
-			origin: OriginFor<T>,
-			candidate: T::AccountId,
-			name: BoundedVec<u8, ConstU32<MAX_NAME_LEN>>,
-		) -> DispatchResult {
-			let proposer = ensure_signed(origin)?;
-			Self::ensure_active_member(&proposer)?;
+    // ---------------------------------------------------------------------------
+    // Errors
+    // ---------------------------------------------------------------------------
 
-			ensure!(!Members::<T>::contains_key(&candidate), Error::<T>::AlreadyMember);
-			ensure!(
-				!Candidates::<T>::contains_key(&candidate),
-				Error::<T>::CandidateAlreadyProposed
-			);
+    #[pallet::error]
+    pub enum Error<T> {
+        /// The caller is not a registered active member.
+        NotActiveMember,
+        /// The candidate is already a registered member.
+        AlreadyMember,
+        /// A proposal for this candidate already exists.
+        CandidateAlreadyProposed,
+        /// No pending proposal exists for this candidate.
+        CandidateNotFound,
+        /// The voter has already cast a vote for this candidate.
+        AlreadyVoted,
+        /// The supplied name exceeds the maximum allowed length.
+        NameTooLong,
+        /// The caller is suspended and cannot perform this action.
+        MemberSuspended,
+        /// The target member is already suspended.
+        AlreadySuspended,
+        /// A member cannot cast a peer suspension vote against themselves.
+        CannotSuspendSelf,
+    }
 
-			let now = frame_system::Pallet::<T>::block_number();
-			let record = CandidateRecord::<T> {
-				name,
-				proposed_by: proposer.clone(),
-				proposed_at: now,
-			};
-			Candidates::<T>::insert(&candidate, record);
+    // ---------------------------------------------------------------------------
+    // Dispatchables
+    // ---------------------------------------------------------------------------
 
-			Self::deposit_event(Event::CandidateProposed {
-				candidate,
-				proposed_by: proposer,
-			});
+    #[pallet::call]
+    impl<T: Config> Pallet<T> {
+        /// Propose a new candidate for membership.
+        ///
+        /// The caller must be an active member. The candidate must not already
+        /// be a member or have a pending proposal.
+        #[pallet::call_index(0)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(3, 2))]
+        pub fn propose_member(
+            origin: OriginFor<T>,
+            candidate: T::AccountId,
+            name: BoundedVec<u8, ConstU32<MAX_NAME_LEN>>,
+        ) -> DispatchResult {
+            let proposer = ensure_signed(origin)?;
+            Self::ensure_active_member(&proposer)?;
 
-			Ok(())
-		}
+            ensure!(
+                !Members::<T>::contains_key(&candidate),
+                Error::<T>::AlreadyMember
+            );
+            ensure!(
+                !Candidates::<T>::contains_key(&candidate),
+                Error::<T>::CandidateAlreadyProposed
+            );
 
-		/// Vote to approve or reject a pending candidate.
-		///
-		/// The caller must be an active member and must not have already voted
-		/// on this candidate. When the approval threshold (80 % of active
-		/// members) is reached the candidate is automatically admitted.
-		#[pallet::call_index(1)]
-		#[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(7, 7))]
-		pub fn vote_on_candidate(
-			origin: OriginFor<T>,
-			candidate: T::AccountId,
-			approve: bool,
-		) -> DispatchResult {
-			let voter = ensure_signed(origin)?;
-			Self::ensure_active_member(&voter)?;
+            let now = frame_system::Pallet::<T>::block_number();
+            let record = CandidateRecord::<T> {
+                name,
+                proposed_by: proposer.clone(),
+                proposed_at: now,
+            };
+            Candidates::<T>::insert(&candidate, record);
 
-			ensure!(Candidates::<T>::contains_key(&candidate), Error::<T>::CandidateNotFound);
-			ensure!(
-				!CandidateVotes::<T>::contains_key(&candidate, &voter),
-				Error::<T>::AlreadyVoted
-			);
+            Self::deposit_event(Event::CandidateProposed {
+                candidate,
+                proposed_by: proposer,
+            });
 
-			CandidateVotes::<T>::insert(&candidate, &voter, approve);
+            Ok(())
+        }
 
-			Self::deposit_event(Event::VoteCast {
-				candidate: candidate.clone(),
-				voter,
-				approve,
-			});
+        /// Vote to approve or reject a pending candidate.
+        ///
+        /// The caller must be an active member and must not have already voted
+        /// on this candidate. When the approval threshold (80 % of active
+        /// members) is reached the candidate is automatically admitted.
+        #[pallet::call_index(1)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(7, 7))]
+        pub fn vote_on_candidate(
+            origin: OriginFor<T>,
+            candidate: T::AccountId,
+            approve: bool,
+        ) -> DispatchResult {
+            let voter = ensure_signed(origin)?;
+            Self::ensure_active_member(&voter)?;
 
-			if approve {
-				let new_count =
-					CandidateApprovalCount::<T>::mutate(&candidate, |c| {
-						*c = c.saturating_add(1);
-						*c
-					});
+            ensure!(
+                Candidates::<T>::contains_key(&candidate),
+                Error::<T>::CandidateNotFound
+            );
+            ensure!(
+                !CandidateVotes::<T>::contains_key(&candidate, &voter),
+                Error::<T>::AlreadyVoted
+            );
 
-				let active = ActiveMemberCount::<T>::get();
-				// 80 % threshold: new_count * 5 >= active * 4
-				if new_count.saturating_mul(5) >= active.saturating_mul(4) {
-					Self::admit_candidate(&candidate)?;
-					return Ok(());
-				}
-			}
+            CandidateVotes::<T>::insert(&candidate, &voter, approve);
 
-			Ok(())
-		}
+            Self::deposit_event(Event::VoteCast {
+                candidate: candidate.clone(),
+                voter,
+                approve,
+            });
 
-		// TODO: Implement `suspend_member` dispatchable.
-		//
-		// Two suspension paths must be supported:
-		//
-		// 1. **Self-initiated** — a member voluntarily suspends their own
-		//    account. This should be callable only by the member themselves.
-		//
-		// 2. **Unanimous peer vote** — all other active members vote to suspend
-		//    a member. See ADR `docs/decisions/005-suspension-unanimity.md`
-		//    for the rationale behind requiring unanimity rather than a simple
-		//    majority.
-		//
-		// Until this is implemented, `MemberStatus::Suspended` is defined but
-		// unused in production code paths.
-	}
+            if approve {
+                let new_count = CandidateApprovalCount::<T>::mutate(&candidate, |c| {
+                    *c = c.saturating_add(1);
+                    *c
+                });
 
-	// ---------------------------------------------------------------------------
-	// Internal helpers
-	// ---------------------------------------------------------------------------
+                let active = ActiveMemberCount::<T>::get();
+                // 80 % threshold: new_count * 5 >= active * 4
+                if new_count.saturating_mul(5) >= active.saturating_mul(4) {
+                    Self::admit_candidate(&candidate)?;
+                    return Ok(());
+                }
+            }
 
-	impl<T: Config> Pallet<T> {
-		/// Returns `Ok(())` if `who` is an active member, otherwise an error.
-		fn ensure_active_member(who: &T::AccountId) -> DispatchResult {
-			let record = Members::<T>::get(who).ok_or(Error::<T>::NotActiveMember)?;
-			ensure!(record.status == MemberStatus::Active, Error::<T>::MemberSuspended);
-			Ok(())
-		}
+            Ok(())
+        }
 
-		/// Admit a candidate as an active member and clean up candidate storage.
-		fn admit_candidate(candidate: &T::AccountId) -> DispatchResult {
-			let cand = Candidates::<T>::take(candidate).ok_or(Error::<T>::CandidateNotFound)?;
+        /// Suspend the caller's own member account.
+        #[pallet::call_index(2)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(2, 4))]
+        pub fn suspend_self(origin: OriginFor<T>) -> DispatchResult {
+            let caller = ensure_signed(origin)?;
+            Self::suspend_member(&caller, SuspensionReason::SelfInitiated)
+        }
 
-			let now = frame_system::Pallet::<T>::block_number();
-			let record = MemberRecord::<T> {
-				name: cand.name,
-				status: MemberStatus::Active,
-				joined_at: now,
-			};
-			Members::<T>::insert(candidate, record);
-			ActiveMemberCount::<T>::mutate(|c| *c = c.saturating_add(1));
+        /// Vote to suspend an active member.
+        #[pallet::call_index(3)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(7, 7))]
+        pub fn vote_suspend_member(
+            origin: OriginFor<T>,
+            target: T::AccountId,
+            approve: bool,
+        ) -> DispatchResult {
+            let voter = ensure_signed(origin)?;
+            Self::ensure_active_member(&voter)?;
+            ensure!(voter != target, Error::<T>::CannotSuspendSelf);
 
-			// Clean up votes for this candidate. The result is intentionally
-			// ignored: the candidate key is already removed, so any stale vote
-			// entries are unreachable and harmless.
-			let _ = CandidateVotes::<T>::clear_prefix(candidate, u32::MAX, None);
-			CandidateApprovalCount::<T>::remove(candidate);
+            // Check the target is an active member. Use an explicit lookup so
+            // that an already-suspended target returns the accurate error.
+            let target_record =
+                Members::<T>::get(&target).ok_or(Error::<T>::NotActiveMember)?;
+            ensure!(
+                target_record.status == MemberStatus::Active,
+                Error::<T>::AlreadySuspended
+            );
 
-			Self::deposit_event(Event::MemberApproved { member: candidate.clone() });
+            ensure!(
+                !SuspensionVotes::<T>::contains_key(&target, &voter),
+                Error::<T>::AlreadyVoted
+            );
 
-			Ok(())
-		}
-	}
+            SuspensionVotes::<T>::insert(&target, &voter, approve);
+            Self::deposit_event(Event::SuspensionVoteCast {
+                target: target.clone(),
+                voter,
+                approve,
+            });
 
-	// ---------------------------------------------------------------------------
-	// MembershipChecker implementation
-	// ---------------------------------------------------------------------------
+            if approve {
+                let approvals = SuspensionApprovalCount::<T>::mutate(&target, |c| {
+                    *c = c.saturating_add(1);
+                    *c
+                });
 
-	impl<T: Config> MembershipChecker<T::AccountId> for Pallet<T> {
-		fn is_active_member(account: &T::AccountId) -> bool {
-			Members::<T>::get(account)
-				.map(|r| r.status == MemberStatus::Active)
-				.unwrap_or(false)
-		}
-	}
+                let required = ActiveMemberCount::<T>::get().saturating_sub(1);
+                if approvals == required {
+                    Self::suspend_member(&target, SuspensionReason::PeerVote)?;
+                }
+            }
+
+            Ok(())
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Internal helpers
+    // ---------------------------------------------------------------------------
+
+    impl<T: Config> Pallet<T> {
+        /// Returns `Ok(())` if `who` is an active member, otherwise an error.
+        fn ensure_active_member(who: &T::AccountId) -> DispatchResult {
+            let record = Members::<T>::get(who).ok_or(Error::<T>::NotActiveMember)?;
+            ensure!(
+                record.status == MemberStatus::Active,
+                Error::<T>::MemberSuspended
+            );
+            Ok(())
+        }
+
+        /// Suspend an active member and clean up suspension vote storage.
+        ///
+        /// Clears **all** pending suspension votes and counts — not just those
+        /// targeting this member — because any change in the active-member pool
+        /// invalidates prior unanimity calculations (see ADR-005).
+        fn suspend_member(member: &T::AccountId, reason: SuspensionReason) -> DispatchResult {
+            Members::<T>::try_mutate(member, |record| -> DispatchResult {
+                let record = record.as_mut().ok_or(Error::<T>::NotActiveMember)?;
+                ensure!(
+                    record.status == MemberStatus::Active,
+                    Error::<T>::AlreadySuspended
+                );
+                record.status = MemberStatus::Suspended;
+                Ok(())
+            })?;
+
+            ActiveMemberCount::<T>::mutate(|c| *c = c.saturating_sub(1));
+
+            // Invalidate every pending suspension vote: the voter pool has
+            // changed so the unanimity threshold is no longer meaningful.
+            let _ = SuspensionVotes::<T>::clear(u32::MAX, None);
+            let _ = SuspensionApprovalCount::<T>::clear(u32::MAX, None);
+
+            Self::deposit_event(Event::MemberSuspended {
+                member: member.clone(),
+                reason,
+            });
+
+            Ok(())
+        }
+
+        /// Admit a candidate as an active member and clean up candidate storage.
+        fn admit_candidate(candidate: &T::AccountId) -> DispatchResult {
+            let cand = Candidates::<T>::take(candidate).ok_or(Error::<T>::CandidateNotFound)?;
+
+            let now = frame_system::Pallet::<T>::block_number();
+            let record = MemberRecord::<T> {
+                name: cand.name,
+                status: MemberStatus::Active,
+                joined_at: now,
+            };
+            Members::<T>::insert(candidate, record);
+            ActiveMemberCount::<T>::mutate(|c| *c = c.saturating_add(1));
+
+            // Clean up votes for this candidate. The result is intentionally
+            // ignored: the candidate key is already removed, so any stale vote
+            // entries are unreachable and harmless.
+            let _ = CandidateVotes::<T>::clear_prefix(candidate, u32::MAX, None);
+            CandidateApprovalCount::<T>::remove(candidate);
+
+            Self::deposit_event(Event::MemberApproved {
+                member: candidate.clone(),
+            });
+
+            Ok(())
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // MembershipChecker implementation
+    // ---------------------------------------------------------------------------
+
+    impl<T: Config> MembershipChecker<T::AccountId> for Pallet<T> {
+        fn is_active_member(account: &T::AccountId) -> bool {
+            Members::<T>::get(account)
+                .map(|r| r.status == MemberStatus::Active)
+                .unwrap_or(false)
+        }
+    }
 }
