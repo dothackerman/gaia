@@ -34,7 +34,7 @@ cargo check   →   cargo clippy   →   cargo test   →   cargo build
 
 ## Code quality rules, ADR requirements, post-build analysis
 
-See `AGENTS.md` §4–8. The same rules apply to Claude Code sessions.
+See `AGENTS.md` §5–7 for cargo command hierarchy, code quality rules, and ADR requirements. Post-build analysis is documented in the runbooks listed below. The same rules apply to Claude Code sessions.
 
 ## Runbooks
 
