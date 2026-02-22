@@ -1,4 +1,5 @@
 use super::{AccountId, Balance, Runtime, RuntimeEvent};
+use frame_support::traits::ConstU32;
 use gaia_membership::MembershipChecker as MembershipSource;
 
 pub struct MembershipAdapter;
@@ -14,4 +15,6 @@ impl gaia_proposals::pallet::Config for Runtime {
     type Balance = Balance;
     type Membership = MembershipAdapter;
     type Treasury = gaia_treasury::Pallet<Runtime>;
+    // 7 days × 14 400 blocks/day = 100 800 blocks.
+    type VotingPeriod = ConstU32<100_800>;
 }

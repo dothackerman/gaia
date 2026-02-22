@@ -1,6 +1,6 @@
 # Current build state
 
-Last updated: 2026-02-22 — Structural scaffolding for parallel pallet development completed. `cargo check`, `cargo clippy`, `cargo test`, and `cargo build` pass.
+Last updated: 2026-02-22 — `treasury` pallet implemented with real balance transfers. `cargo check`, `cargo clippy`, `cargo test`, and `cargo build` pass.
 
 ## Node (`node/`)
 
@@ -9,7 +9,7 @@ Last updated: 2026-02-22 — Structural scaffolding for parallel pallet developm
 ## Runtime (`runtime/`)
 
 - Status: **integrating GAIA pallets**
-- Runtime now wires: `template`, `membership`, `treasury` (stub), `proposals` (stub)
+- Runtime now wires: `template`, `membership`, `treasury`, `proposals`
 - Runtime config split: pallet-specific files under `runtime/src/configs/`
 
 ## Pallet: template (`pallets/template/`)
@@ -29,19 +29,29 @@ Last updated: 2026-02-22 — Structural scaffolding for parallel pallet developm
 
 ## Pallet: treasury (`pallets/treasury/`)
 
-- Status: **created (stub scaffold)**
+- Status: **implemented**
 - Crate name: `gaia-treasury`
 - Runtime integration: wired
-- Notes: no storage/dispatchables yet (intended for parallel implementation)
+- Storage: `TreasuryBalance`
+- Dispatchables: `deposit_fee`, `disburse`
+- Events: `FeeDeposited`, `Disbursed`
+- Trait: implements `TreasuryHandler<AccountId, Balance>` for proposals
+- Account model: PalletId-derived sovereign account with fungible transfers
+- Tests: 10 passing (8 in `src/lib.rs` + 2 runtime integrity/genesis build)
 
 ## Pallet: proposals (`pallets/proposals/`)
 
-- Status: **created (stub scaffold)**
+- Status: **implemented**
 - Crate name: `gaia-proposals`
 - Runtime integration: wired
 - Interface ownership: defines downstream cross-pallet traits `MembershipChecker` and `TreasuryHandler`
 - Runtime adapters: wired in `runtime/src/configs/proposals.rs`
-- Notes: no storage/dispatchables yet (intended for parallel implementation)
+- Storage: `ProposalCount`, `Proposals`, `ProposalVotes`, `ProposalYesCount`, `ProposalNoCount`
+- Dispatchables: `submit_proposal`, `vote_on_proposal`, `tally_proposal`, `execute_proposal`
+- Lifecycle: `Active` → `Approved`/`Rejected` → `Executed` (terminal)
+- Voting: simple majority (yes > no); window length configurable via `VotingPeriod` constant (100 800 blocks / 7 days in runtime)
+- Invariants: I-2 (active-member check on every vote), I-3 (single-execution guard)
+- Tests: 16 passing (14 in `src/tests.rs` + 2 in `src/mock.rs`: runtime integrity + genesis build)
 
 ## Build status
 
@@ -49,7 +59,7 @@ Last updated: 2026-02-22 — Structural scaffolding for parallel pallet developm
 |---|---|
 | `cargo check` | pass (2026-02-22) |
 | `cargo clippy` | pass — GAIA pallet/runtime changes clean; existing node-template warnings remain (2026-02-22) |
-| `cargo test` | pass — workspace (2026-02-22) |
+| `cargo test` | pass — 53 tests total (19 membership + 16 proposals + 10 treasury + 4 runtime + 4 template) (2026-02-22) |
 | `cargo deny check licenses` | pass — all dependencies compliant (2026-02-21) |
 | `cargo build` | pass (2026-02-22) |
 
