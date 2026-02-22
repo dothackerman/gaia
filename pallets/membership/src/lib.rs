@@ -133,6 +133,13 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
+			if !cfg!(test) {
+				assert!(
+					!self.initial_members.is_empty(),
+					"membership genesis requires at least one initial member"
+				);
+			}
+
 			let mut count = 0u32;
 			for (account, name) in &self.initial_members {
 				let record = MemberRecord::<T> {
@@ -241,7 +248,7 @@ pub mod pallet {
 		/// on this candidate. When the approval threshold (80 % of active
 		/// members) is reached the candidate is automatically admitted.
 		#[pallet::call_index(1)]
-		#[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(4, 4))]
+		#[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(7, 7))]
 		pub fn vote_on_candidate(
 			origin: OriginFor<T>,
 			candidate: T::AccountId,
@@ -275,6 +282,7 @@ pub mod pallet {
 				// 80 % threshold: new_count * 5 >= active * 4
 				if new_count.saturating_mul(5) >= active.saturating_mul(4) {
 					Self::admit_candidate(&candidate)?;
+					return Ok(());
 				}
 			}
 

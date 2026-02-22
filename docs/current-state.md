@@ -22,7 +22,7 @@ Last updated: 2026-02-21 — Membership pallet implemented. `cargo check`, `carg
 - Dispatchables: `propose_member`, `vote_on_candidate`
 - Trait: `MembershipChecker<AccountId>` with `is_active_member()`
 - Genesis: three hardcoded active members (Alice, Bob, Charlie)
-- Tests: 19 passing (genesis, propose, vote, threshold, suspension guards, MembershipChecker trait)
+- Tests: 19 passing (17 in `src/tests.rs` + 2 in `src/mock.rs`: runtime integrity + genesis build)
 - TODO: `suspend_member` dispatchable (self-initiated + unanimous peer vote; see ADR 005)
 
 ## Pallet: treasury (`pallets/treasury/`)
