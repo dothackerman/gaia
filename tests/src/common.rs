@@ -1,4 +1,4 @@
-use frame_support::traits::{ConstU32, OnInitialize};
+use frame_support::traits::{ConstU32, Get, OnInitialize};
 use gaia_runtime::{
     AccountId, BalancesConfig, MembershipConfig, Runtime, RuntimeGenesisConfig, System,
 };
@@ -68,4 +68,14 @@ pub fn advance_blocks(n: u32) {
         System::set_block_number(next);
         System::on_initialize(next);
     }
+}
+
+/// Advance past the voting window so proposals can be tallied.
+///
+/// Derives the value from the runtime's `VotingPeriod` config, so tests
+/// stay in sync if the constant changes.
+pub fn advance_past_voting_period() {
+    let period =
+        <<Runtime as gaia_proposals::pallet::Config>::VotingPeriod as Get<u32>>::get();
+    advance_blocks(period + 1);
 }

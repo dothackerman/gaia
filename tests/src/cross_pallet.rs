@@ -60,7 +60,7 @@ fn proposal_executes_at_most_once() {
             id,
             true
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(alice()),
             id
@@ -108,7 +108,7 @@ fn suspension_during_voting_period() {
             id,
             true
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(alice()),
             id
@@ -215,7 +215,7 @@ fn treasury_balance_never_goes_negative_via_proposal() {
             id,
             true
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(alice()),
             id

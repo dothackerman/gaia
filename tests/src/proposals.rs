@@ -39,7 +39,7 @@ fn full_proposal_lifecycle() {
             id,
             true
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(alice()),
             id
@@ -109,7 +109,7 @@ fn double_vote_on_proposal_fails() {
 fn vote_after_window_closes_fails() {
     new_test_ext().execute_with(|| {
         let id = submit_default();
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_noop!(
             Proposals::vote_on_proposal(RuntimeOrigin::signed(alice()), id, true),
             gaia_proposals::Error::<Runtime>::VotingClosed
@@ -130,7 +130,7 @@ fn proposal_rejected_when_no_majority() {
             id,
             false
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(alice()),
             id
@@ -158,7 +158,7 @@ fn tally_rejects_when_tie_vote() {
             id,
             false
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(charlie()),
             id
@@ -193,7 +193,7 @@ fn tally_fails_for_already_tallied_proposal() {
             id,
             true
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(alice()),
             id
@@ -224,7 +224,7 @@ fn execute_restricted_to_organizer() {
             id,
             true
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(alice()),
             id
@@ -249,7 +249,7 @@ fn execute_fails_for_rejected_proposal() {
             id,
             false
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(alice()),
             id
@@ -275,7 +275,7 @@ fn execute_fails_when_treasury_insufficient() {
             id,
             true
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(alice()),
             id
@@ -309,7 +309,7 @@ fn double_execution_fails() {
             id,
             true
         ));
-        advance_blocks(100_801);
+        advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(alice()),
             id
