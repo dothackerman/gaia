@@ -339,7 +339,6 @@ pub mod pallet {
         #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(2, 2))]
         pub fn suspend_self(origin: OriginFor<T>) -> DispatchResult {
             let caller = ensure_signed(origin)?;
-            Self::ensure_active_member(&caller)?;
 
             Members::<T>::try_mutate(&caller, |member| -> DispatchResult {
                 let member = member.as_mut().ok_or(Error::<T>::NotActiveMember)?;

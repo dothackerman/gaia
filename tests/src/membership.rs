@@ -177,7 +177,7 @@ fn double_self_suspension_fails() {
         assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(alice())));
         assert_noop!(
             Membership::suspend_self(RuntimeOrigin::signed(alice())),
-            gaia_membership::Error::<gaia_runtime::Runtime>::MemberSuspended
+            gaia_membership::Error::<gaia_runtime::Runtime>::AlreadySuspended
         );
     });
 }

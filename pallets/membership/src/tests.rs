@@ -357,6 +357,17 @@ fn suspend_self_fails_for_non_member() {
 }
 
 #[test]
+fn suspend_self_twice_returns_already_suspended() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(ALICE)));
+        assert_noop!(
+            Membership::suspend_self(RuntimeOrigin::signed(ALICE)),
+            Error::<Test>::AlreadySuspended
+        );
+    });
+}
+
+#[test]
 fn vote_suspend_member_requires_unanimous_other_members() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::vote_suspend_member(
