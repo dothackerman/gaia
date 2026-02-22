@@ -22,6 +22,9 @@ frame-system-benchmarking = { optional = true, workspace = true }
 frame-system-rpc-runtime-api.workspace = true
 frame-system.workspace = true
 frame-try-runtime = { optional = true, workspace = true }
+gaia-membership.workspace = true
+gaia-proposals.workspace = true
+gaia-treasury.workspace = true
 pallet-aura.workspace = true
 pallet-balances.workspace = true
 pallet-grandpa.workspace = true
@@ -62,6 +65,9 @@ std = [
 	"frame-system-rpc-runtime-api/std",
 	"frame-system/std",
 	"frame-try-runtime?/std",
+	"gaia-membership/std",
+	"gaia-proposals/std",
+	"gaia-treasury/std",
 	"pallet-aura/std",
 	"pallet-balances/std",
 	"pallet-grandpa/std",
@@ -108,6 +114,9 @@ try-runtime = [
 	"frame-support/try-runtime",
 	"frame-system/try-runtime",
 	"frame-try-runtime/try-runtime",
+	"gaia-membership/try-runtime",
+	"gaia-proposals/try-runtime",
+	"gaia-treasury/try-runtime",
 	"pallet-aura/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-grandpa/try-runtime",

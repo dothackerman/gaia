@@ -15,14 +15,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{AccountId, BalancesConfig, RuntimeGenesisConfig, SudoConfig};
+use crate::{AccountId, BalancesConfig, MembershipConfig, RuntimeGenesisConfig, SudoConfig};
 use alloc::{vec, vec::Vec};
 use frame_support::build_struct_json_patch;
+use frame_support::traits::ConstU32;
 use serde_json::Value;
+use sp_runtime::BoundedVec;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_genesis_builder::{self, PresetId};
 use sp_keyring::Sr25519Keyring;
+
+fn bounded_name(name: &[u8]) -> BoundedVec<u8, ConstU32<{ gaia_membership::pallet::MAX_NAME_LEN }>> {
+	BoundedVec::try_from(name.to_vec()).expect("hardcoded name must fit MAX_NAME_LEN")
+}
+
+fn initial_members() -> BoundedVec<
+	(
+		AccountId,
+		BoundedVec<u8, ConstU32<{ gaia_membership::pallet::MAX_NAME_LEN }>>,
+	),
+	ConstU32<100>,
+> {
+	BoundedVec::try_from(vec![
+		(Sr25519Keyring::Alice.to_account_id(), bounded_name(b"Alice")),
+		(Sr25519Keyring::Bob.to_account_id(), bounded_name(b"Bob")),
+		(Sr25519Keyring::Charlie.to_account_id(), bounded_name(b"Charlie")),
+	])
+	.expect("hardcoded initial_members must fit bounded capacity")
+}
 
 // Returns the genesis config presets populated with given parameters.
 fn testnet_genesis(
@@ -30,6 +51,12 @@ fn testnet_genesis(
 	endowed_accounts: Vec<AccountId>,
 	root: AccountId,
 ) -> Value {
+	let initial_members = initial_members();
+	assert!(
+		!initial_members.is_empty(),
+		"runtime genesis requires at least one initial member"
+	);
+
 	build_struct_json_patch!(RuntimeGenesisConfig {
 		balances: BalancesConfig {
 			balances: endowed_accounts
@@ -45,6 +72,7 @@ fn testnet_genesis(
 			authorities: initial_authorities.iter().map(|x| (x.1.clone(), 1)).collect::<Vec<_>>(),
 		},
 		sudo: SudoConfig { key: Some(root) },
+		membership: MembershipConfig { initial_members },
 	})
 }
 
@@ -106,4 +134,28 @@ pub fn preset_names() -> Vec<PresetId> {
 		PresetId::from(sp_genesis_builder::DEV_RUNTIME_PRESET),
 		PresetId::from(sp_genesis_builder::LOCAL_TESTNET_RUNTIME_PRESET),
 	]
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn member_count(preset: Value) -> usize {
+		preset
+			.get("membership")
+			.and_then(|m| m.get("initialMembers"))
+			.and_then(Value::as_array)
+			.map(|members| members.len())
+			.expect("membership.initialMembers must exist in runtime preset")
+	}
+
+	#[test]
+	fn development_preset_has_non_empty_initial_members() {
+		assert!(member_count(development_config_genesis()) > 0);
+	}
+
+	#[test]
+	fn local_preset_has_non_empty_initial_members() {
+		assert!(member_count(local_config_genesis()) > 0);
+	}
 }

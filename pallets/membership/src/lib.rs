@@ -133,13 +133,6 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
-			if !cfg!(test) {
-				assert!(
-					!self.initial_members.is_empty(),
-					"membership genesis requires at least one initial member"
-				);
-			}
-
 			let mut count = 0u32;
 			for (account, name) in &self.initial_members {
 				let record = MemberRecord::<T> {

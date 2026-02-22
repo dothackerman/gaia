@@ -23,6 +23,11 @@
 //
 // For more information, please refer to <http://unlicense.org>
 
+mod membership;
+mod proposals;
+mod template;
+mod treasury;
+
 // Substrate and Polkadot dependencies
 use frame_support::{
 	derive_impl, parameter_types,
@@ -155,10 +160,4 @@ impl pallet_sudo::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeCall = RuntimeCall;
 	type WeightInfo = pallet_sudo::weights::SubstrateWeight<Runtime>;
-}
-
-/// Configure the pallet-template in pallets/template.
-impl pallet_template::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
 }

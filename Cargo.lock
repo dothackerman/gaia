@@ -3267,6 +3267,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gaia-proposals"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "gaia-runtime"
 version = "0.1.0"
 dependencies = [
@@ -3278,6 +3288,9 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gaia-membership",
+ "gaia-proposals",
+ "gaia-treasury",
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
@@ -3304,6 +3317,16 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
+]
+
+[[package]]
+name = "gaia-treasury"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]

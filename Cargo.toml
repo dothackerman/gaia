@@ -9,14 +9,18 @@ edition = "2021"
 members = [
     "node",
     "pallets/membership",
+    "pallets/proposals",
     "pallets/template",
+    "pallets/treasury",
     "runtime",
 ]
 resolver = "2"
 
 [workspace.dependencies]
 gaia-membership = { path = "./pallets/membership", default-features = false }
+gaia-proposals = { path = "./pallets/proposals", default-features = false }
 gaia-runtime = { path = "./runtime", default-features = false }
+gaia-treasury = { path = "./pallets/treasury", default-features = false }
 pallet-template = { path = "./pallets/template", default-features = false }
 clap = { version = "4.5.13" }
 frame-benchmarking-cli = { version = "47.0.0", default-features = false }
