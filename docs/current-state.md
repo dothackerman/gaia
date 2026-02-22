@@ -71,7 +71,7 @@ Last updated: 2026-02-22 — clean code pass, un-ignored unit tests, comprehensi
 |---|---|
 | `cargo check` | pass (2026-02-22) |
 | `cargo clippy` | pass — GAIA pallet/runtime/integration changes clean; existing node-template warnings remain (2026-02-22) |
-| `cargo test` | pass — 100 tests total (24 membership + 17 proposals + 10 treasury + 41 integration + 4 runtime + 4 template) (2026-02-22) |
+| `cargo test` | pass — 105 tests total (24 membership + 17 proposals + 10 treasury + 41 integration + 9 runtime + 4 template) (2026-02-22) |
 | `cargo deny check licenses` | pass — all dependencies compliant (2026-02-21) |
 | `cargo build` | pass (2026-02-22) |
 

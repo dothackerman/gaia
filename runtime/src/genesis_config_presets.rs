@@ -158,7 +158,13 @@ pub fn preset_names() -> Vec<PresetId> {
 mod tests {
     use super::*;
 
-    fn member_count(preset: Value) -> usize {
+    /// Expected treasury seed balance in all presets.
+    const TREASURY_SEED_BALANCE: u128 = 1_000_000_000_000;
+
+    /// Expected endowed-account balance in all presets.
+    const ENDOWED_BALANCE: u128 = 1u128 << 60;
+
+    fn member_count(preset: &Value) -> usize {
         preset
             .get("membership")
             .and_then(|m| m.get("initialMembers"))
@@ -167,13 +173,157 @@ mod tests {
             .expect("membership.initialMembers must exist in runtime preset")
     }
 
+    /// Extract the `balances.balances` array from a preset JSON value.
+    fn balances_entries(preset: &Value) -> Vec<(String, u128)> {
+        preset
+            .get("balances")
+            .and_then(|b| b.get("balances"))
+            .and_then(Value::as_array)
+            .expect("balances.balances must exist in runtime preset")
+            .iter()
+            .map(|entry| {
+                let arr = entry.as_array().expect("each balance entry is a tuple");
+                let account = arr[0].as_str().expect("account is a string").to_string();
+                let amount = arr[1]
+                    .as_number()
+                    .and_then(|n| n.as_u128())
+                    .expect("balance is a u128");
+                (account, amount)
+            })
+            .collect()
+    }
+
+    /// Return the SS58 address of the treasury sovereign account.
+    fn treasury_account_ss58() -> String {
+        use sp_core::crypto::Ss58Codec;
+        let treasury_account: AccountId =
+            PalletId(*b"ga/trsy0").into_account_truncating();
+        treasury_account.to_ss58check()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Membership preset tests
+    // ---------------------------------------------------------------------------
+
     #[test]
     fn development_preset_has_non_empty_initial_members() {
-        assert!(member_count(development_config_genesis()) > 0);
+        assert!(member_count(&development_config_genesis()) > 0);
     }
 
     #[test]
     fn local_preset_has_non_empty_initial_members() {
-        assert!(member_count(local_config_genesis()) > 0);
+        assert!(member_count(&local_config_genesis()) > 0);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Treasury balance preset tests
+    // ---------------------------------------------------------------------------
+
+    #[test]
+    fn development_preset_includes_treasury_account_with_seed_balance() {
+        let preset = development_config_genesis();
+        let entries = balances_entries(&preset);
+        let treasury_ss58 = treasury_account_ss58();
+
+        let treasury_entry = entries
+            .iter()
+            .find(|(account, _)| *account == treasury_ss58);
+
+        assert!(
+            treasury_entry.is_some(),
+            "development preset must include treasury account ({treasury_ss58}) in balances"
+        );
+        assert_eq!(
+            treasury_entry.unwrap().1,
+            TREASURY_SEED_BALANCE,
+            "treasury seed balance must be {TREASURY_SEED_BALANCE}"
+        );
+    }
+
+    #[test]
+    fn local_preset_includes_treasury_account_with_seed_balance() {
+        let preset = local_config_genesis();
+        let entries = balances_entries(&preset);
+        let treasury_ss58 = treasury_account_ss58();
+
+        let treasury_entry = entries
+            .iter()
+            .find(|(account, _)| *account == treasury_ss58);
+
+        assert!(
+            treasury_entry.is_some(),
+            "local preset must include treasury account ({treasury_ss58}) in balances"
+        );
+        assert_eq!(
+            treasury_entry.unwrap().1,
+            TREASURY_SEED_BALANCE,
+            "treasury seed balance must be {TREASURY_SEED_BALANCE}"
+        );
+    }
+
+    #[test]
+    fn development_preset_endowed_accounts_have_correct_balance() {
+        let preset = development_config_genesis();
+        let entries = balances_entries(&preset);
+        let treasury_ss58 = treasury_account_ss58();
+
+        let endowed: Vec<_> = entries
+            .iter()
+            .filter(|(account, _)| *account != treasury_ss58)
+            .collect();
+
+        assert!(
+            !endowed.is_empty(),
+            "development preset must have at least one endowed account"
+        );
+        for (account, balance) in &endowed {
+            assert_eq!(
+                *balance, ENDOWED_BALANCE,
+                "endowed account {account} must have balance {ENDOWED_BALANCE}"
+            );
+        }
+    }
+
+    #[test]
+    fn local_preset_endowed_accounts_have_correct_balance() {
+        let preset = local_config_genesis();
+        let entries = balances_entries(&preset);
+        let treasury_ss58 = treasury_account_ss58();
+
+        let endowed: Vec<_> = entries
+            .iter()
+            .filter(|(account, _)| *account != treasury_ss58)
+            .collect();
+
+        assert!(
+            !endowed.is_empty(),
+            "local preset must have at least one endowed account"
+        );
+        for (account, balance) in &endowed {
+            assert_eq!(
+                *balance, ENDOWED_BALANCE,
+                "endowed account {account} must have balance {ENDOWED_BALANCE}"
+            );
+        }
+    }
+
+    #[test]
+    fn treasury_account_is_not_duplicated_in_balances() {
+        let treasury_ss58 = treasury_account_ss58();
+
+        for (name, preset) in [
+            ("development", development_config_genesis()),
+            ("local", local_config_genesis()),
+        ] {
+            let entries = balances_entries(&preset);
+            let count = entries
+                .iter()
+                .filter(|(account, _)| *account == treasury_ss58)
+                .count();
+            assert_eq!(
+                count, 1,
+                "{name} preset must contain exactly one treasury balance entry, found {count}"
+            );
+        }
     }
 }
