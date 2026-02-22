@@ -353,7 +353,15 @@ pub mod pallet {
             let voter = ensure_signed(origin)?;
             Self::ensure_active_member(&voter)?;
             ensure!(voter != target, Error::<T>::CannotSuspendSelf);
-            Self::ensure_active_member(&target)?;
+
+            // Check the target is an active member. Use an explicit lookup so
+            // that an already-suspended target returns the accurate error.
+            let target_record =
+                Members::<T>::get(&target).ok_or(Error::<T>::NotActiveMember)?;
+            ensure!(
+                target_record.status == MemberStatus::Active,
+                Error::<T>::AlreadySuspended
+            );
 
             ensure!(
                 !SuspensionVotes::<T>::contains_key(&target, &voter),

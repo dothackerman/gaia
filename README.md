@@ -59,9 +59,9 @@ diagram of the *Fachdomäne*.
 ## Status
 
 > **All three pallets implemented and tested.** `membership`, `treasury`, and `proposals`
-> are fully implemented, runtime-wired, and covered by 99 tests (50 pallet unit tests +
-> 41 integration tests + 4 runtime + 4 template).
-> See [`docs/current-state.md`](docs/current-state.md) for the latest detailed status.
+> are fully implemented, runtime-wired, and covered by unit, integration, and runtime tests.
+> See [`docs/current-state.md`](docs/current-state.md) for the latest detailed status,
+> including current test counts.
 
 ## For AI agents
 

@@ -19,13 +19,11 @@ use crate::{AccountId, BalancesConfig, MembershipConfig, RuntimeGenesisConfig, S
 use alloc::{vec, vec::Vec};
 use frame_support::build_struct_json_patch;
 use frame_support::traits::ConstU32;
-use frame_support::PalletId;
 use serde_json::Value;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_genesis_builder::{self, PresetId};
 use sp_keyring::Sr25519Keyring;
-use sp_runtime::traits::AccountIdConversion;
 use sp_runtime::BoundedVec;
 
 fn bounded_name(
@@ -67,7 +65,8 @@ fn testnet_genesis(
         "runtime genesis requires at least one initial member"
     );
 
-    let treasury_account: AccountId = PalletId(*b"ga/trsy0").into_account_truncating();
+    let treasury_account: AccountId =
+        gaia_treasury::Pallet::<crate::Runtime>::account_id();
     let mut balances = endowed_accounts
         .iter()
         .cloned()
@@ -197,7 +196,7 @@ mod tests {
     fn treasury_account_ss58() -> String {
         use sp_core::crypto::Ss58Codec;
         let treasury_account: AccountId =
-            PalletId(*b"ga/trsy0").into_account_truncating();
+            gaia_treasury::Pallet::<crate::Runtime>::account_id();
         treasury_account.to_ss58check()
     }
 
