@@ -58,8 +58,8 @@ diagram of the *Fachdomäne*.
 
 ## Status
 
-> **Active scaffold.** `membership` is implemented and wired in runtime.
-> `treasury` and `proposals` are scaffolded and runtime-wired, pending full implementation.
+> **All three core pallets implemented.** `membership`, `treasury`, and
+> `proposals` are fully implemented, tested, and wired in runtime.
 > See [`docs/current-state.md`](docs/current-state.md) for the latest detailed status.
 
 ## For AI agents
