@@ -20,6 +20,7 @@
 
 ```
 AGENTS.md                          # ← YOU ARE HERE — agent instructions
+CLAUDE.md                          # Claude Code session instructions (auto-read)
 README.md                          # Human-facing project overview
 docs/
   current-state.md                 # Live build status — read before coding
@@ -36,12 +37,16 @@ docs/
   agents/
     post-build.md                  # Post-build warning-classification workflow
     security-upgrade.md            # Security dependency-upgrade runbook
+.claude/
+  agents/
+    post-build.md                  # Post-build warning-classification workflow
+    security-upgrade.md            # Security dependency-upgrade runbook
 node/                              # Substrate node binary
 runtime/                           # Runtime crate — wires pallets together
 pallets/
   membership/                      # Pallet: member registry (implemented)
   treasury/                        # Pallet: community fund (scaffold)
-  proposals/                       # Pallet: spending proposals + voting (scaffold)
+  proposals/                       # Pallet: spending proposals + voting (implemented)
 ```
 
 ## 3. Three-pallet architecture
