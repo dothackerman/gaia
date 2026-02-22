@@ -11,7 +11,6 @@ use frame_support::{assert_noop, assert_ok};
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn genesis_seeds_three_active_members() {
     new_test_ext().execute_with(|| {
         assert_eq!(ActiveMemberCount::<Test>::get(), 3);
@@ -23,7 +22,6 @@ fn genesis_seeds_three_active_members() {
 }
 
 #[test]
-#[ignore]
 fn genesis_members_are_active() {
     new_test_ext().execute_with(|| {
         let record = Members::<Test>::get(ALICE).unwrap();
@@ -37,7 +35,6 @@ fn genesis_members_are_active() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn is_active_member_returns_true_for_active() {
     new_test_ext().execute_with(|| {
         assert!(<crate::Pallet<Test> as MembershipChecker<u64>>::is_active_member(&ALICE));
@@ -45,7 +42,6 @@ fn is_active_member_returns_true_for_active() {
 }
 
 #[test]
-#[ignore]
 fn is_active_member_returns_false_for_non_member() {
     new_test_ext().execute_with(|| {
         assert!(!<crate::Pallet<Test> as MembershipChecker<u64>>::is_active_member(&DAVE));
@@ -57,7 +53,6 @@ fn is_active_member_returns_false_for_non_member() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn propose_member_succeeds_for_active_member() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
@@ -81,7 +76,6 @@ fn propose_member_succeeds_for_active_member() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn propose_member_fails_for_non_member() {
     new_test_ext().execute_with(|| {
         assert_noop!(
@@ -92,7 +86,6 @@ fn propose_member_fails_for_non_member() {
 }
 
 #[test]
-#[ignore]
 fn propose_member_fails_for_existing_member() {
     new_test_ext().execute_with(|| {
         assert_noop!(
@@ -103,7 +96,6 @@ fn propose_member_fails_for_existing_member() {
 }
 
 #[test]
-#[ignore]
 fn propose_member_fails_for_duplicate_proposal() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
@@ -123,7 +115,6 @@ fn propose_member_fails_for_duplicate_proposal() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn vote_on_candidate_records_vote() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
@@ -150,7 +141,6 @@ fn vote_on_candidate_records_vote() {
 }
 
 #[test]
-#[ignore]
 fn rejection_vote_does_not_increment_approval_count() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
@@ -172,7 +162,6 @@ fn rejection_vote_does_not_increment_approval_count() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn vote_fails_for_non_member() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
@@ -188,7 +177,6 @@ fn vote_fails_for_non_member() {
 }
 
 #[test]
-#[ignore]
 fn vote_fails_for_nonexistent_candidate() {
     new_test_ext().execute_with(|| {
         assert_noop!(
@@ -199,7 +187,6 @@ fn vote_fails_for_nonexistent_candidate() {
 }
 
 #[test]
-#[ignore]
 fn vote_fails_for_double_vote() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
@@ -224,7 +211,6 @@ fn vote_fails_for_double_vote() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn candidate_approved_at_80_percent_threshold() {
     // 3 active members → 80 % = ceil(2.4) = 3 needed
     // With integer math: approval * 5 >= active * 4  →  3 * 5 = 15 >= 3 * 4 = 12 ✓
@@ -266,7 +252,6 @@ fn candidate_approved_at_80_percent_threshold() {
 }
 
 #[test]
-#[ignore]
 fn candidate_not_approved_below_threshold() {
     // 3 active members: 2 approve, 1 rejects → 2 * 5 = 10 < 3 * 4 = 12 → not approved
     new_test_ext().execute_with(|| {
@@ -301,7 +286,6 @@ fn candidate_not_approved_below_threshold() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn suspended_member_cannot_propose() {
     new_test_ext().execute_with(|| {
         // Manually suspend Alice for testing purposes.
@@ -318,7 +302,6 @@ fn suspended_member_cannot_propose() {
 }
 
 #[test]
-#[ignore]
 fn suspended_member_cannot_vote() {
     new_test_ext().execute_with(|| {
         // First, propose EVE while Alice is still active.
@@ -345,7 +328,6 @@ fn suspended_member_cannot_vote() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn suspend_self_marks_member_suspended_and_decrements_count() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(ALICE)));
@@ -365,7 +347,6 @@ fn suspend_self_marks_member_suspended_and_decrements_count() {
 }
 
 #[test]
-#[ignore]
 fn suspend_self_fails_for_non_member() {
     new_test_ext().execute_with(|| {
         assert_noop!(
@@ -376,7 +357,6 @@ fn suspend_self_fails_for_non_member() {
 }
 
 #[test]
-#[ignore]
 fn vote_suspend_member_requires_unanimous_other_members() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::vote_suspend_member(
@@ -412,7 +392,6 @@ fn vote_suspend_member_requires_unanimous_other_members() {
 }
 
 #[test]
-#[ignore]
 fn vote_suspend_member_rejects_self_target() {
     new_test_ext().execute_with(|| {
         assert_noop!(

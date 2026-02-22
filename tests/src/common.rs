@@ -17,8 +17,11 @@ pub fn charlie() -> AccountId {
 pub fn dave() -> AccountId {
     Sr25519Keyring::Dave.to_account_id()
 }
+pub fn eve() -> AccountId {
+    Sr25519Keyring::Eve.to_account_id()
+}
 
-fn bounded_name(
+pub fn bounded_name(
     name: &[u8],
 ) -> BoundedVec<u8, ConstU32<{ gaia_membership::pallet::MAX_NAME_LEN }>> {
     BoundedVec::try_from(name.to_vec()).expect("name fits")
@@ -37,6 +40,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         (bob(), 1u128 << 60),
         (charlie(), 1u128 << 60),
         (dave(), 1u128 << 60),
+        (eve(), 1u128 << 60),
     ];
     balances.push((
         gaia_treasury::Pallet::<Runtime>::account_id(),

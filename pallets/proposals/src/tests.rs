@@ -45,7 +45,6 @@ fn advance_past_voting() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn submit_proposal_succeeds_for_active_member() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -66,7 +65,6 @@ fn submit_proposal_succeeds_for_active_member() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn submit_proposal_fails_for_non_member() {
     new_test_ext().execute_with(|| {
         assert_noop!(
@@ -87,7 +85,6 @@ fn submit_proposal_fails_for_non_member() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn vote_on_proposal_records_vote() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -111,7 +108,6 @@ fn vote_on_proposal_records_vote() {
 }
 
 #[test]
-#[ignore]
 fn no_vote_increments_no_count() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -130,7 +126,6 @@ fn no_vote_increments_no_count() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn vote_rejects_non_active_member() {
     // I-2: only active members may vote.
     new_test_ext().execute_with(|| {
@@ -143,7 +138,6 @@ fn vote_rejects_non_active_member() {
 }
 
 #[test]
-#[ignore]
 fn vote_fails_for_double_vote() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -160,7 +154,6 @@ fn vote_fails_for_double_vote() {
 }
 
 #[test]
-#[ignore]
 fn vote_fails_after_voting_period_closed() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -177,7 +170,6 @@ fn vote_fails_after_voting_period_closed() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn tally_approves_with_yes_majority() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -205,7 +197,6 @@ fn tally_approves_with_yes_majority() {
 }
 
 #[test]
-#[ignore]
 fn tally_rejects_with_no_majority() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -237,7 +228,6 @@ fn tally_rejects_with_no_majority() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn tally_fails_while_voting_still_open() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -254,7 +244,6 @@ fn tally_fails_while_voting_still_open() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn execute_proposal_succeeds_for_approved() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -292,7 +281,6 @@ fn execute_proposal_succeeds_for_approved() {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[ignore]
 fn execute_fails_for_non_organizer() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -316,7 +304,6 @@ fn execute_fails_for_non_organizer() {
 }
 
 #[test]
-#[ignore]
 fn execute_fails_for_non_approved_proposal() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
@@ -329,7 +316,6 @@ fn execute_fails_for_non_approved_proposal() {
 }
 
 #[test]
-#[ignore]
 fn execute_fails_for_already_executed_proposal() {
     // I-3: a proposal must execute at most once.
     new_test_ext().execute_with(|| {
@@ -359,7 +345,6 @@ fn execute_fails_for_already_executed_proposal() {
 }
 
 #[test]
-#[ignore]
 fn execute_propagates_treasury_error() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);

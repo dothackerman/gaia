@@ -73,7 +73,7 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub(crate) fn account_id() -> T::AccountId {
+        pub fn account_id() -> T::AccountId {
             T::PalletId::get().into_account_truncating()
         }
 
@@ -223,7 +223,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn deposit_fee_increases_treasury_balance() {
         new_test_ext().execute_with(|| {
             let treasury_account = Treasury::account_id();
@@ -236,7 +235,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn deposit_fee_rejects_zero_amount() {
         new_test_ext().execute_with(|| {
             assert_noop!(
@@ -247,7 +245,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn disburse_reduces_balance_when_funded() {
         new_test_ext().execute_with(|| {
             let treasury_account = Treasury::account_id();
@@ -261,7 +258,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn disburse_rejects_when_insufficient_funds() {
         new_test_ext().execute_with(|| {
             let bob_start = Balances::free_balance(&BOB);
@@ -276,7 +272,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn proposals_treasury_handler_disburses_once_funded() {
         new_test_ext().execute_with(|| {
             let treasury_account = Treasury::account_id();
@@ -293,7 +288,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn disburse_requires_root_origin() {
         new_test_ext().execute_with(|| {
             assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(ALICE), 20));
@@ -305,7 +299,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn deposit_fee_rejects_overflow() {
         new_test_ext().execute_with(|| {
             let alice_start = Balances::free_balance(&ALICE);
@@ -319,7 +312,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn disburse_rejects_zero_amount() {
         new_test_ext().execute_with(|| {
             assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(ALICE), 20));

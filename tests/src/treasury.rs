@@ -36,3 +36,57 @@ fn disburse_requires_root() {
         assert_ok!(Treasury::disburse(RuntimeOrigin::root(), bob(), 10));
     });
 }
+
+#[test]
+fn deposit_zero_fails() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 0),
+            gaia_treasury::Error::<Runtime>::ZeroAmount
+        );
+    });
+}
+
+#[test]
+fn disburse_zero_fails() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 100));
+        assert_noop!(
+            Treasury::disburse(RuntimeOrigin::root(), bob(), 0),
+            gaia_treasury::Error::<Runtime>::ZeroAmount
+        );
+    });
+}
+
+#[test]
+fn disburse_insufficient_funds_fails() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 50));
+        assert_noop!(
+            Treasury::disburse(RuntimeOrigin::root(), bob(), 100),
+            gaia_treasury::Error::<Runtime>::InsufficientFunds
+        );
+        // Balance unchanged
+        assert_eq!(
+            gaia_treasury::pallet::TreasuryBalance::<Runtime>::get(),
+            50
+        );
+    });
+}
+
+#[test]
+fn disburse_transfers_correct_amounts() {
+    new_test_ext().execute_with(|| {
+        let treasury = gaia_treasury::Pallet::<Runtime>::account_id();
+        assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 200));
+        let bob_before = Balances::free_balance(bob());
+        let treasury_before = Balances::free_balance(treasury.clone());
+        assert_ok!(Treasury::disburse(RuntimeOrigin::root(), bob(), 80));
+        assert_eq!(Balances::free_balance(bob()), bob_before + 80);
+        assert_eq!(Balances::free_balance(treasury), treasury_before - 80);
+        assert_eq!(
+            gaia_treasury::pallet::TreasuryBalance::<Runtime>::get(),
+            120
+        );
+    });
+}
