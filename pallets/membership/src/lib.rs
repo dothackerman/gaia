@@ -336,27 +336,10 @@ pub mod pallet {
 
         /// Suspend the caller's own member account.
         #[pallet::call_index(2)]
-        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(2, 2))]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(2, 4))]
         pub fn suspend_self(origin: OriginFor<T>) -> DispatchResult {
             let caller = ensure_signed(origin)?;
-
-            Members::<T>::try_mutate(&caller, |member| -> DispatchResult {
-                let member = member.as_mut().ok_or(Error::<T>::NotActiveMember)?;
-                ensure!(
-                    member.status == MemberStatus::Active,
-                    Error::<T>::AlreadySuspended
-                );
-                member.status = MemberStatus::Suspended;
-                Ok(())
-            })?;
-
-            ActiveMemberCount::<T>::mutate(|c| *c = c.saturating_sub(1));
-            Self::deposit_event(Event::MemberSuspended {
-                member: caller,
-                reason: SuspensionReason::SelfInitiated,
-            });
-
-            Ok(())
+            Self::suspend_member(&caller, SuspensionReason::SelfInitiated)
         }
 
         /// Vote to suspend an active member.
