@@ -16,6 +16,9 @@ Thumbs.db
 # Copilot agent worktrees
 *.worktrees/
 
+# Post-build agent logs
+*.log
+
 # Temporary import directories
 .solochain-template/
 
