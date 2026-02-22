@@ -1,6 +1,8 @@
+use frame_support::assert_ok;
 use frame_support::traits::{ConstU32, Get, OnInitialize};
 use gaia_runtime::{
-    AccountId, BalancesConfig, MembershipConfig, Runtime, RuntimeGenesisConfig, System,
+    AccountId, BalancesConfig, MembershipConfig, Proposals, Runtime, RuntimeGenesisConfig,
+    RuntimeOrigin, System,
 };
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{BoundedVec, BuildStorage};
@@ -78,4 +80,30 @@ pub fn advance_past_voting_period() {
     let period =
         <<Runtime as gaia_proposals::pallet::Config>::VotingPeriod as Get<u32>>::get();
     advance_blocks(period + 1);
+}
+
+/// Build a bounded proposal title from raw bytes.
+pub fn bounded_title(
+    s: &[u8],
+) -> BoundedVec<u8, ConstU32<{ gaia_proposals::pallet::MAX_TITLE_LEN }>> {
+    BoundedVec::try_from(s.to_vec()).expect("title fits")
+}
+
+/// Build a bounded proposal description from raw bytes.
+pub fn bounded_desc(
+    s: &[u8],
+) -> BoundedVec<u8, ConstU32<{ gaia_proposals::pallet::MAX_DESC_LEN }>> {
+    BoundedVec::try_from(s.to_vec()).expect("description fits")
+}
+
+/// Submit a minimal proposal from Alice and return its id.
+pub fn submit_default_proposal() -> u32 {
+    assert_ok!(Proposals::submit_proposal(
+        RuntimeOrigin::signed(alice()),
+        bounded_title(b"t"),
+        bounded_desc(b"d"),
+        100,
+        10
+    ));
+    gaia_proposals::pallet::ProposalCount::<Runtime>::get()
 }

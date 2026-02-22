@@ -399,6 +399,10 @@ pub mod pallet {
         }
 
         /// Suspend an active member and clean up suspension vote storage.
+        ///
+        /// Clears **all** pending suspension votes and counts — not just those
+        /// targeting this member — because any change in the active-member pool
+        /// invalidates prior unanimity calculations (see ADR-005).
         fn suspend_member(member: &T::AccountId, reason: SuspensionReason) -> DispatchResult {
             Members::<T>::try_mutate(member, |record| -> DispatchResult {
                 let record = record.as_mut().ok_or(Error::<T>::NotActiveMember)?;
@@ -411,8 +415,11 @@ pub mod pallet {
             })?;
 
             ActiveMemberCount::<T>::mutate(|c| *c = c.saturating_sub(1));
-            let _ = SuspensionVotes::<T>::clear_prefix(member, u32::MAX, None);
-            SuspensionApprovalCount::<T>::remove(member);
+
+            // Invalidate every pending suspension vote: the voter pool has
+            // changed so the unanimity threshold is no longer meaningful.
+            let _ = SuspensionVotes::<T>::clear(u32::MAX, None);
+            let _ = SuspensionApprovalCount::<T>::clear(u32::MAX, None);
 
             Self::deposit_event(Event::MemberSuspended {
                 member: member.clone(),

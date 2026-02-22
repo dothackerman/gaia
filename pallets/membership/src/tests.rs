@@ -411,3 +411,34 @@ fn vote_suspend_member_rejects_self_target() {
         );
     });
 }
+
+#[test]
+fn self_suspension_clears_pending_votes_against_other_targets() {
+    // Regression: if Charlie self-suspends while a suspension vote against
+    // Alice is in progress, the voter pool shrinks and stale votes must be
+    // invalidated to prevent an incorrect threshold match.
+    new_test_ext().execute_with(|| {
+        // 3 active members: ALICE, BOB, CHARLIE.
+        // BOB votes to suspend ALICE (requires unanimity of others = 2).
+        assert_ok!(Membership::vote_suspend_member(
+            RuntimeOrigin::signed(BOB),
+            ALICE,
+            true,
+        ));
+        assert_eq!(SuspensionApprovalCount::<Test>::get(ALICE), 1);
+
+        // CHARLIE self-suspends → active count drops to 2.
+        // All pending suspension votes must be cleared.
+        assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(CHARLIE)));
+        assert_eq!(ActiveMemberCount::<Test>::get(), 2);
+        assert_eq!(SuspensionApprovalCount::<Test>::get(ALICE), 0);
+        assert!(!SuspensionVotes::<Test>::contains_key(ALICE, BOB));
+
+        // ALICE must still be active — the stale vote must not trigger her
+        // suspension.
+        assert_eq!(
+            Members::<Test>::get(ALICE).unwrap().status,
+            MemberStatus::Active
+        );
+    });
+}

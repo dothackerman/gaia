@@ -2,24 +2,6 @@ use crate::common::*;
 use frame_support::{assert_noop, assert_ok};
 use gaia_runtime::{Balances, Proposals, Runtime, RuntimeOrigin, Treasury};
 
-fn b(s: &[u8]) -> sp_runtime::BoundedVec<u8, frame_support::traits::ConstU32<128>> {
-    sp_runtime::BoundedVec::try_from(s.to_vec()).unwrap()
-}
-fn d(s: &[u8]) -> sp_runtime::BoundedVec<u8, frame_support::traits::ConstU32<1024>> {
-    sp_runtime::BoundedVec::try_from(s.to_vec()).unwrap()
-}
-
-fn submit_default() -> u32 {
-    assert_ok!(Proposals::submit_proposal(
-        RuntimeOrigin::signed(alice()),
-        b(b"t"),
-        d(b"d"),
-        100,
-        10
-    ));
-    gaia_proposals::pallet::ProposalCount::<Runtime>::get()
-}
-
 // ---------------------------------------------------------------------------
 // Full lifecycle
 // ---------------------------------------------------------------------------
@@ -28,7 +10,7 @@ fn submit_default() -> u32 {
 fn full_proposal_lifecycle() {
     new_test_ext().execute_with(|| {
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,
@@ -75,8 +57,8 @@ fn non_member_cannot_submit_proposal() {
         assert_noop!(
             Proposals::submit_proposal(
                 RuntimeOrigin::signed(dave()),
-                b(b"t"),
-                d(b"d"),
+                bounded_title(b"t"),
+                bounded_desc(b"d"),
                 100,
                 10
             ),
@@ -92,7 +74,7 @@ fn non_member_cannot_submit_proposal() {
 #[test]
 fn double_vote_on_proposal_fails() {
     new_test_ext().execute_with(|| {
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,
@@ -108,7 +90,7 @@ fn double_vote_on_proposal_fails() {
 #[test]
 fn vote_after_window_closes_fails() {
     new_test_ext().execute_with(|| {
-        let id = submit_default();
+        let id = submit_default_proposal();
         advance_past_voting_period();
         assert_noop!(
             Proposals::vote_on_proposal(RuntimeOrigin::signed(alice()), id, true),
@@ -124,7 +106,7 @@ fn vote_after_window_closes_fails() {
 #[test]
 fn proposal_rejected_when_no_majority() {
     new_test_ext().execute_with(|| {
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,
@@ -147,7 +129,7 @@ fn proposal_rejected_when_no_majority() {
 #[test]
 fn tally_rejects_when_tie_vote() {
     new_test_ext().execute_with(|| {
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,
@@ -176,7 +158,7 @@ fn tally_rejects_when_tie_vote() {
 #[test]
 fn tally_fails_while_voting_open() {
     new_test_ext().execute_with(|| {
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_noop!(
             Proposals::tally_proposal(RuntimeOrigin::signed(alice()), id),
             gaia_proposals::Error::<Runtime>::VotingStillOpen
@@ -187,7 +169,7 @@ fn tally_fails_while_voting_open() {
 #[test]
 fn tally_fails_for_already_tallied_proposal() {
     new_test_ext().execute_with(|| {
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,
@@ -213,7 +195,7 @@ fn tally_fails_for_already_tallied_proposal() {
 fn execute_restricted_to_organizer() {
     new_test_ext().execute_with(|| {
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,
@@ -243,7 +225,7 @@ fn execute_restricted_to_organizer() {
 #[test]
 fn execute_fails_for_rejected_proposal() {
     new_test_ext().execute_with(|| {
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,
@@ -264,7 +246,7 @@ fn execute_fails_for_rejected_proposal() {
 #[test]
 fn execute_fails_when_treasury_insufficient() {
     new_test_ext().execute_with(|| {
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,
@@ -298,7 +280,7 @@ fn execute_fails_when_treasury_insufficient() {
 fn double_execution_fails() {
     new_test_ext().execute_with(|| {
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,
@@ -329,7 +311,7 @@ fn double_execution_fails() {
 #[test]
 fn execute_active_proposal_fails() {
     new_test_ext().execute_with(|| {
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_noop!(
             Proposals::execute_proposal(RuntimeOrigin::signed(alice()), id),
             gaia_proposals::Error::<Runtime>::ProposalNotApproved

@@ -2,23 +2,6 @@ use crate::common::*;
 use frame_support::{assert_noop, assert_ok};
 use gaia_runtime::{Membership, Proposals, Runtime, RuntimeOrigin, Treasury};
 
-fn b(s: &[u8]) -> sp_runtime::BoundedVec<u8, frame_support::traits::ConstU32<128>> {
-    sp_runtime::BoundedVec::try_from(s.to_vec()).unwrap()
-}
-fn d(s: &[u8]) -> sp_runtime::BoundedVec<u8, frame_support::traits::ConstU32<1024>> {
-    sp_runtime::BoundedVec::try_from(s.to_vec()).unwrap()
-}
-fn submit_default() -> u32 {
-    assert_ok!(Proposals::submit_proposal(
-        RuntimeOrigin::signed(alice()),
-        b(b"t"),
-        d(b"d"),
-        100,
-        10
-    ));
-    gaia_proposals::pallet::ProposalCount::<Runtime>::get()
-}
-
 // ---------------------------------------------------------------------------
 // I-2: Only active members vote
 // ---------------------------------------------------------------------------
@@ -26,7 +9,7 @@ fn submit_default() -> u32 {
 #[test]
 fn only_active_members_can_vote_on_proposals() {
     new_test_ext().execute_with(|| {
-        let id = submit_default();
+        let id = submit_default_proposal();
         // Non-member cannot vote
         assert_noop!(
             Proposals::vote_on_proposal(RuntimeOrigin::signed(dave()), id, true),
@@ -49,7 +32,7 @@ fn only_active_members_can_vote_on_proposals() {
 fn proposal_executes_at_most_once() {
     new_test_ext().execute_with(|| {
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,
@@ -85,7 +68,7 @@ fn suspended_member_cannot_submit_proposal() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(alice())));
         assert_noop!(
-            Proposals::submit_proposal(RuntimeOrigin::signed(alice()), b(b"t"), d(b"d"), 100, 10),
+            Proposals::submit_proposal(RuntimeOrigin::signed(alice()), bounded_title(b"t"), bounded_desc(b"d"), 100, 10),
             gaia_proposals::Error::<Runtime>::NotActiveMember
         );
     });
@@ -95,7 +78,7 @@ fn suspended_member_cannot_submit_proposal() {
 fn suspension_during_voting_period() {
     new_test_ext().execute_with(|| {
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
-        let id = submit_default();
+        let id = submit_default_proposal();
         // Bob votes yes then suspends — vote already cast, still counts
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(bob()),
@@ -150,7 +133,7 @@ fn newly_admitted_member_can_vote_on_proposals() {
         ));
 
         // Dave is now a member — can vote on a proposal
-        let id = submit_default();
+        let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(dave()),
             id,
@@ -187,8 +170,8 @@ fn newly_admitted_member_can_submit_proposal() {
         // Dave submits a proposal
         assert_ok!(Proposals::submit_proposal(
             RuntimeOrigin::signed(dave()),
-            b(b"Dave's idea"),
-            d(b"Dave proposes something"),
+            bounded_title(b"Dave's idea"),
+            bounded_desc(b"Dave proposes something"),
             50,
             20
         ));
@@ -204,7 +187,7 @@ fn treasury_balance_never_goes_negative_via_proposal() {
     new_test_ext().execute_with(|| {
         // Fund treasury with less than the proposal amount
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 50));
-        let id = submit_default(); // requests 100
+        let id = submit_default_proposal(); // requests 100
         assert_ok!(Proposals::vote_on_proposal(
             RuntimeOrigin::signed(alice()),
             id,

@@ -24,7 +24,7 @@ Last updated: 2026-02-22 — clean code pass, un-ignored unit tests, comprehensi
 - Dispatchables: `propose_member`, `vote_on_candidate`, `suspend_self`, `vote_suspend_member`
 - Trait: `MembershipChecker<AccountId>` with `is_active_member()`
 - Genesis: supports configured initial members via `GenesisConfig.initial_members`
-- Tests: 24 unit tests passing
+- Tests: 25 unit tests passing
 
 ## Pallet: treasury (`pallets/treasury/`)
 
@@ -71,7 +71,7 @@ Last updated: 2026-02-22 — clean code pass, un-ignored unit tests, comprehensi
 |---|---|
 | `cargo check` | pass (2026-02-22) |
 | `cargo clippy` | pass — GAIA pallet/runtime/integration changes clean; existing node-template warnings remain (2026-02-22) |
-| `cargo test` | pass — 105 tests total (24 membership + 17 proposals + 10 treasury + 41 integration + 9 runtime + 4 template) (2026-02-22) |
+| `cargo test` | pass — 106 tests total (25 membership + 17 proposals + 10 treasury + 41 integration + 9 runtime + 4 template) (2026-02-22) |
 | `cargo deny check licenses` | pass — all dependencies compliant (2026-02-21) |
 | `cargo build` | pass (2026-02-22) |
 
