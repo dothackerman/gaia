@@ -363,6 +363,15 @@ fn newly_admitted_member_vote_counts_after_proposer_suspends() {
             false
         ));
 
+        // Proposer self-suspends before tally.
+        assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(alice())));
+        assert_eq!(
+            gaia_membership::pallet::Members::<Runtime>::get(alice())
+                .unwrap()
+                .status,
+            gaia_membership::pallet::MemberStatus::Suspended
+        );
+
         advance_past_voting_period();
         assert_ok!(Proposals::tally_proposal(
             RuntimeOrigin::signed(charlie()),

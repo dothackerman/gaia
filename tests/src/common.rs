@@ -40,7 +40,7 @@ pub fn new_test_ext_with_members(members: &[(AccountId, &[u8])]) -> sp_io::TestE
     )
     .expect("bounded");
 
-    // Collect unique accounts: all members + Dave/Eve/Ferdie + treasury
+    // Collect unique accounts: all members + Dave/Eve/Ferdie
     let mut balance_accounts: std::collections::BTreeSet<AccountId> = members
         .iter()
         .map(|(id, _)| id.clone())

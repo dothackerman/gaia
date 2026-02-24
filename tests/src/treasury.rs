@@ -118,6 +118,9 @@ fn non_member_can_deposit_fee() {
 #[test]
 fn multiple_deposits_accumulate() {
     new_test_ext().execute_with(|| {
+        let treasury = gaia_treasury::Pallet::<Runtime>::account_id();
+        let treasury_before = Balances::free_balance(treasury.clone());
+
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 100));
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(bob()), 200));
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(charlie()), 50));
@@ -125,11 +128,6 @@ fn multiple_deposits_accumulate() {
             gaia_treasury::pallet::TreasuryBalance::<Runtime>::get(),
             350
         );
-        let treasury = gaia_treasury::Pallet::<Runtime>::account_id();
-        // Expected: genesis treasury balance + 350 deposited
-        assert_eq!(
-            Balances::free_balance(treasury),
-            1_000_000_000_000 + 350
-        );
+        assert_eq!(Balances::free_balance(treasury), treasury_before + 350);
     });
 }
