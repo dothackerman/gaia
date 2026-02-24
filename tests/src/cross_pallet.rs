@@ -215,3 +215,166 @@ fn treasury_balance_never_goes_negative_via_proposal() {
         );
     });
 }
+
+// ---------------------------------------------------------------------------
+// Suspended organizer ↔ proposal execution
+// ---------------------------------------------------------------------------
+
+/// `execute_proposal` checks `NotOrganizer` but does NOT check
+/// `is_active_member`. A suspended organizer can still execute their
+/// approved proposal. This test documents that behaviour.
+#[test]
+fn suspended_organizer_can_execute_approved_proposal() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
+        let id = submit_default_proposal(); // Alice is organizer
+
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(alice()),
+            id,
+            true
+        ));
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(bob()),
+            id,
+            true
+        ));
+
+        advance_past_voting_period();
+        assert_ok!(Proposals::tally_proposal(
+            RuntimeOrigin::signed(bob()),
+            id
+        ));
+
+        // Alice self-suspends AFTER approval
+        assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(alice())));
+
+        // Execution still succeeds — no active-member check in execute_proposal
+        assert_ok!(Proposals::execute_proposal(
+            RuntimeOrigin::signed(alice()),
+            id
+        ));
+        assert_eq!(
+            gaia_proposals::pallet::Proposals::<Runtime>::get(id)
+                .unwrap()
+                .status,
+            gaia_proposals::pallet::ProposalStatus::Executed
+        );
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Tally after all voters suspend
+// ---------------------------------------------------------------------------
+
+/// All three members vote, then all self-suspend. A non-member (Dave)
+/// tallies successfully. Votes cast before suspension still count, and
+/// tally does not require membership.
+#[test]
+fn tally_succeeds_after_all_voters_suspended() {
+    new_test_ext().execute_with(|| {
+        let id = submit_default_proposal();
+
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(alice()),
+            id,
+            true
+        ));
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(bob()),
+            id,
+            true
+        ));
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(charlie()),
+            id,
+            false
+        ));
+
+        // All members self-suspend
+        assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(alice())));
+        assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(bob())));
+        assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(charlie())));
+        assert_eq!(
+            gaia_membership::pallet::ActiveMemberCount::<Runtime>::get(),
+            0
+        );
+
+        advance_past_voting_period();
+
+        // Non-member tallies — succeeds (2 yes > 1 no)
+        assert_ok!(Proposals::tally_proposal(
+            RuntimeOrigin::signed(dave()),
+            id
+        ));
+        assert_eq!(
+            gaia_proposals::pallet::Proposals::<Runtime>::get(id)
+                .unwrap()
+                .status,
+            gaia_proposals::pallet::ProposalStatus::Approved
+        );
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Newly admitted member + suspension interaction
+// ---------------------------------------------------------------------------
+
+/// A freshly admitted member votes on a proposal, then the proposer
+/// (also a member who voted) self-suspends. The newly admitted member's
+/// vote still counts toward tally.
+#[test]
+fn newly_admitted_member_vote_counts_after_proposer_suspends() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
+
+        // Admit Dave
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(alice()),
+            dave(),
+            bounded_name(b"Dave")
+        ));
+        for voter in [alice(), bob(), charlie()] {
+            assert_ok!(Membership::vote_on_candidate(
+                RuntimeOrigin::signed(voter),
+                dave(),
+                true
+            ));
+        }
+
+        let id = submit_default_proposal(); // Alice submits
+
+        // Dave and Alice vote yes
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(dave()),
+            id,
+            true
+        ));
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(alice()),
+            id,
+            true
+        ));
+
+        // Bob votes no, Charlie abstains (doesn't vote)
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(bob()),
+            id,
+            false
+        ));
+
+        advance_past_voting_period();
+        assert_ok!(Proposals::tally_proposal(
+            RuntimeOrigin::signed(charlie()),
+            id
+        ));
+
+        // 2 yes > 1 no → Approved
+        assert_eq!(
+            gaia_proposals::pallet::Proposals::<Runtime>::get(id)
+                .unwrap()
+                .status,
+            gaia_proposals::pallet::ProposalStatus::Approved
+        );
+    });
+}
