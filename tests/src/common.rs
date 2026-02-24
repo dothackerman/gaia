@@ -22,6 +22,56 @@ pub fn dave() -> AccountId {
 pub fn eve() -> AccountId {
     Sr25519Keyring::Eve.to_account_id()
 }
+pub fn ferdie() -> AccountId {
+    Sr25519Keyring::Ferdie.to_account_id()
+}
+
+/// Build genesis externalities with a custom set of initial members.
+///
+/// Each tuple is `(AccountId, name_bytes)`. Every listed account plus Dave,
+/// Eve, and Ferdie receive a large initial balance. The treasury sovereign
+/// account is also seeded.
+pub fn new_test_ext_with_members(members: &[(AccountId, &[u8])]) -> sp_io::TestExternalities {
+    let initial_members: BoundedVec<_, ConstU32<100>> = BoundedVec::try_from(
+        members
+            .iter()
+            .map(|(id, name)| (id.clone(), bounded_name(name)))
+            .collect::<Vec<_>>(),
+    )
+    .expect("bounded");
+
+    // Collect unique accounts: all members + Dave/Eve/Ferdie + treasury
+    let mut balance_accounts: std::collections::BTreeSet<AccountId> = members
+        .iter()
+        .map(|(id, _)| id.clone())
+        .collect();
+    for extra in [dave(), eve(), ferdie()] {
+        balance_accounts.insert(extra);
+    }
+
+    let mut balances: Vec<(AccountId, u128)> = balance_accounts
+        .into_iter()
+        .map(|id| (id, 1u128 << 60))
+        .collect();
+    balances.push((
+        gaia_treasury::Pallet::<Runtime>::account_id(),
+        1_000_000_000_000,
+    ));
+
+    let genesis = RuntimeGenesisConfig {
+        balances: BalancesConfig {
+            balances,
+            dev_accounts: None,
+        },
+        membership: MembershipConfig { initial_members },
+        ..Default::default()
+    };
+
+    let storage = genesis.build_storage().expect("genesis builds");
+    let mut ext = sp_io::TestExternalities::new(storage);
+    ext.execute_with(|| System::set_block_number(1));
+    ext
+}
 
 pub fn bounded_name(
     name: &[u8],
