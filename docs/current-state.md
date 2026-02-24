@@ -1,6 +1,6 @@
 # Current build state
 
-Last updated: 2026-02-24 — added tester CLI draft integration and local fast mode.
+Last updated: 2026-02-24 — completed tester CLI local-member UX baseline.
 
 ## Node (`node/`)
 
@@ -11,6 +11,7 @@ Last updated: 2026-02-24 — added tester CLI draft integration and local fast m
 - Status: **integrating GAIA pallets**
 - Runtime now wires: `template`, `membership`, `treasury`, `proposals`
 - Runtime config split: pallet-specific files under `runtime/src/configs/`
+- Development preset now endows tester personas (`Alice`, `Bob`, `Charlie`, `Dave`, `Eve`, `Ferdie`) for deterministic local CLI fee payment.
 
 ## Pallet: template (`pallets/template/`)
 
@@ -68,31 +69,49 @@ Last updated: 2026-02-24 — added tester CLI draft integration and local fast m
 
 ## Tester CLI (`tester-cli/`)
 
-- Status: **in progress**
+- Status: **implemented** (local tester UX baseline)
 - Crate name: `gaia-tester-cli`
 - Scope: human local tester workflows (persona, membership, proposal, treasury, watch, local helpers)
 - API mode: typed Subxt bindings using committed metadata artifact (`tester-cli/artifacts/gaia.scale`)
+- Metadata artifact: refreshed from local node RPC (non-empty, committed SCALE bytes)
+- UX output: finalized extrinsic hash + typed pallet event summaries for membership/proposal/treasury actions
+- Error mapping: runtime dispatch failures surfaced as `Pallet::Error` labels when available
+- Vote CLI contract: explicit `yes|no` values (no positional bool ambiguity)
 - Local mode: runtime `fast-local` feature shortens voting period for practical manual lifecycle testing
 
 ## Build status
 
 | Command | Status |
 |---|---|
-| `cargo check` | pass (2026-02-24) |
+| `cargo check` | pass — GAIA workspace clean; known upstream warnings only (2026-02-24) |
 | `cargo clippy` | pass — GAIA pallet/runtime/integration changes clean; existing node-template warnings remain (2026-02-24) |
-| `cargo test` | pass — 119 tests total (25 membership + 17 proposals + 10 treasury + 54 integration + 9 runtime + 4 template) (2026-02-24) |
+| `cargo test` | pass — 124 tests total (25 membership + 17 proposals + 10 treasury + 54 integration + 9 runtime + 4 template + 5 tester-cli) (2026-02-24) |
 | `cargo deny check licenses` | pass — all dependencies compliant (2026-02-21) |
 | `cargo build` | pass (2026-02-24) |
 
 ## Upstream Warnings
 
-- 2026-02-22 — Node template clippy warnings (`clippy::result_large_err`) in `node/` (benchmarking/command/service/main). Treated as template-origin warnings for now.
-- 2026-02-21 — `polkadot-overseer`: cycle detection output during build ("Found 3 strongly connected components which includes at least one cycle each").
-- 2026-02-21 — WASM runtime build target recommendation: `wasm32v1-none` is supported in Rust >= 1.84 (see `docs/decisions/003-wasm32v1-none-target.md`).
-- 2026-02-21 — `trie-db v0.30.0`: future-incompatibility warning (may be rejected by a future version of Rust). Consider running `cargo report future-incompatibilities --id 1`.
+- 2026-02-24 — Node template clippy warnings (`clippy::result_large_err`) in `node/` (benchmarking/command/service/main). Treated as template-origin warnings for now.
+- 2026-02-24 — `polkadot-overseer`: cycle detection output during build ("Found 3 strongly connected components which includes at least one cycle each").
+- 2026-02-24 — WASM runtime build target recommendation: `wasm32v1-none` is supported in Rust >= 1.84 (see `docs/decisions/003-wasm32v1-none-target.md`).
+- 2026-02-24 — `trie-db v0.30.0`: future-incompatibility warning (may be rejected by a future version of Rust). Consider running `cargo report future-incompatibilities --id 1`.
 
 ## Latest changes (this branch)
 
+- Updated `development_config_genesis` endowments to fund all seeded tester personas used by `gaia-tester-cli`.
+- Regenerated `tester-cli/artifacts/gaia.scale` from a running local node RPC (`state_getMetadata`) and restored typed Subxt codegen.
+- Aligned tester CLI extrinsics with current runtime metadata:
+  - `membership propose` now submits both candidate account and bounded name.
+  - `proposal submit` now uses bounded title/description arguments.
+- Added shared transaction helper in `tester-cli/src/api.rs`:
+  - waits for finalized success,
+  - decodes runtime dispatch errors into readable `Pallet::Error` labels,
+  - standardizes event/result reporting.
+- Improved command feedback for human testers:
+  - membership/proposal/treasury commands now print typed event summaries and finalized extrinsic hashes.
+  - `watch proposal` now includes yes/no vote counts and `vote_end`.
+- Simplified local helper command names to `start`, `reset`, `refresh-metadata`.
+- Added tester CLI parser coverage to 5 unit tests, including membership vote (`yes|no`) and local refresh metadata command parsing.
 - Removed all `#[ignore]` markers from pallet unit tests — all 50 pallet tests now run by default.
 - Made `treasury::account_id()` public (was `pub(crate)`) for integration test access.
 - Gated integration test modules with `#[cfg(test)]` — eliminates unused-import warnings during `cargo check`.

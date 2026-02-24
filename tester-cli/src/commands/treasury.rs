@@ -6,13 +6,17 @@ pub async fn deposit(url: &str, signer: Persona, amount: u128) -> Result<()> {
     let signer_key = signer.keypair()?;
     let payload = api::gaia::tx().treasury().deposit_fee(amount);
 
-    client
-        .tx()
-        .sign_and_submit_then_watch_default(&payload, &signer_key)
-        .await?
-        .wait_for_finalized_success()
-        .await?;
+    let events = api::submit_and_watch(&client, &payload, &signer_key).await?;
 
-    println!("Deposited {amount} to treasury as {}.", signer.label());
+    if let Some(event) = events.find_first::<api::gaia::treasury::events::FeeDeposited>()? {
+        println!(
+            "Treasury fee deposited: from={}, amount={}, new_balance={}",
+            event.from, event.amount, event.new_balance
+        );
+    } else {
+        println!("Deposited {amount} to treasury as {}.", signer.label());
+    }
+
+    println!("Finalized extrinsic hash: {}", events.extrinsic_hash());
     Ok(())
 }

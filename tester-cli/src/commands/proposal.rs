@@ -12,20 +12,24 @@ pub async fn submit(
     let client = api::connect(url).await?;
     let signer_key = signer.keypair()?;
     let payload = api::gaia::tx().proposals().submit_proposal(
-        title.into_bytes(),
-        description.into_bytes(),
+        api::bounded_str(&title),
+        api::bounded_str(&description),
         amount,
         event_block,
     );
 
-    client
-        .tx()
-        .sign_and_submit_then_watch_default(&payload, &signer_key)
-        .await?
-        .wait_for_finalized_success()
-        .await?;
+    let events = api::submit_and_watch(&client, &payload, &signer_key).await?;
 
-    println!("Submitted proposal as {}.", signer.label());
+    if let Some(event) = events.find_first::<api::gaia::proposals::events::ProposalSubmitted>()? {
+        println!(
+            "Proposal submitted: id={}, organizer={}",
+            event.proposal_id, event.organizer
+        );
+    } else {
+        println!("Proposal submission finalized.");
+    }
+
+    println!("Finalized extrinsic hash: {}", events.extrinsic_hash());
     Ok(())
 }
 
@@ -36,14 +40,22 @@ pub async fn vote(url: &str, signer: Persona, proposal_id: u32, approve: bool) -
         .proposals()
         .vote_on_proposal(proposal_id, approve);
 
-    client
-        .tx()
-        .sign_and_submit_then_watch_default(&payload, &signer_key)
-        .await?
-        .wait_for_finalized_success()
-        .await?;
+    let events = api::submit_and_watch(&client, &payload, &signer_key).await?;
 
-    println!("Vote submitted by {}.", signer.label());
+    if let Some(event) = events.find_first::<api::gaia::proposals::events::VoteCast>()? {
+        println!(
+            "Proposal vote recorded: proposal_id={}, voter={}, approve={}",
+            event.proposal_id, event.voter, event.approve
+        );
+    } else {
+        println!("Proposal vote finalized.");
+    }
+
+    println!(
+        "Vote submitted by {} (extrinsic {}).",
+        signer.label(),
+        events.extrinsic_hash()
+    );
     Ok(())
 }
 
@@ -52,14 +64,17 @@ pub async fn tally(url: &str, signer: Persona, proposal_id: u32) -> Result<()> {
     let signer_key = signer.keypair()?;
     let payload = api::gaia::tx().proposals().tally_proposal(proposal_id);
 
-    client
-        .tx()
-        .sign_and_submit_then_watch_default(&payload, &signer_key)
-        .await?
-        .wait_for_finalized_success()
-        .await?;
+    let events = api::submit_and_watch(&client, &payload, &signer_key).await?;
 
-    println!("Tallied proposal {proposal_id}.");
+    if events.has::<api::gaia::proposals::events::ProposalApproved>()? {
+        println!("Tallied proposal {proposal_id}: Approved.");
+    } else if events.has::<api::gaia::proposals::events::ProposalRejected>()? {
+        println!("Tallied proposal {proposal_id}: Rejected.");
+    } else {
+        println!("Tallied proposal {proposal_id}.");
+    }
+
+    println!("Finalized extrinsic hash: {}", events.extrinsic_hash());
     Ok(())
 }
 
@@ -68,13 +83,17 @@ pub async fn execute(url: &str, signer: Persona, proposal_id: u32) -> Result<()>
     let signer_key = signer.keypair()?;
     let payload = api::gaia::tx().proposals().execute_proposal(proposal_id);
 
-    client
-        .tx()
-        .sign_and_submit_then_watch_default(&payload, &signer_key)
-        .await?
-        .wait_for_finalized_success()
-        .await?;
+    let events = api::submit_and_watch(&client, &payload, &signer_key).await?;
 
-    println!("Executed proposal {proposal_id}.");
+    if let Some(event) = events.find_first::<api::gaia::proposals::events::ProposalExecuted>()? {
+        println!(
+            "Proposal executed: id={}, organizer={}, amount={}",
+            event.proposal_id, event.organizer, event.amount
+        );
+    } else {
+        println!("Executed proposal {proposal_id}.");
+    }
+
+    println!("Finalized extrinsic hash: {}", events.extrinsic_hash());
     Ok(())
 }

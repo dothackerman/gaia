@@ -1,6 +1,8 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
+use core::str::FromStr;
 use subxt::utils::AccountId32;
 use subxt_signer::sr25519::Keypair;
+use subxt_signer::SecretUri;
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub enum Persona {
@@ -34,22 +36,12 @@ impl Persona {
     }
 
     pub fn keypair(self) -> Result<Keypair> {
-        let uri = format!("//{}", self.label());
+        let uri = SecretUri::from_str(&format!("//{}", self.label()))?;
         Keypair::from_uri(&uri).map_err(Into::into)
     }
 
     pub fn account_id(self) -> Result<AccountId32> {
         let public_key = self.keypair()?.public_key();
         Ok(AccountId32(public_key.0))
-    }
-
-    pub fn from_name(name: &str) -> Result<Self> {
-        let lowered = name.to_ascii_lowercase();
-        for persona in Self::ALL {
-            if lowered == persona.label().to_ascii_lowercase() {
-                return Ok(persona);
-            }
-        }
-        bail!("unknown persona: {name}")
     }
 }

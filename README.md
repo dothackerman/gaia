@@ -57,10 +57,10 @@ The command surface is intentionally small:
 
 - `persona` — list and preview seeded local personas (`Alice`, `Bob`, `Charlie`, etc.)
 - `membership` — submit and vote member admission calls
-- `proposal` — submit/vote/tally/execute proposal calls
+- `proposal` — submit/vote/tally/execute proposal calls (`vote` uses `yes|no`)
 - `treasury` — deposit fees into treasury
 - `watch` — inspect proposal state and treasury balance
-- `local` — local helper hints (start/reset/metadata-refresh guidance)
+- `local` — local helper hints (`start`, `reset`, `refresh-metadata`)
 
 ### Fast local tester mode
 
@@ -94,6 +94,9 @@ cargo build -p gaia-tester-cli
 ```bash
 cargo run -p gaia-node --features gaia-runtime/fast-local -- --dev --tmp --rpc-external --unsafe-rpc-external
 ```
+
+The `--dev` preset endows seeded tester personas (`Alice` through `Ferdie`) so
+membership/proposal/treasury calls can pay fees immediately.
 
 4. In a second terminal, list personas:
 
@@ -140,9 +143,17 @@ The tester CLI uses a committed metadata artifact: `tester-cli/artifacts/gaia.sc
 To refresh it after runtime changes:
 
 1. Run local node on `ws://127.0.0.1:9944`.
-2. Fetch metadata hex (`state_getMetadata`) from the local RPC endpoint.
-3. Decode hex bytes into `tester-cli/artifacts/gaia.scale`.
-4. Rebuild `gaia-tester-cli`.
+2. Fetch and decode metadata directly into `tester-cli/artifacts/gaia.scale`:
+
+```bash
+curl -sS -H 'content-type: application/json' \
+  -d '{"id":1,"jsonrpc":"2.0","method":"state_getMetadata","params":[]}' \
+  http://127.0.0.1:9944 \
+  | sed -n 's/.*"result":"0x\([^"]*\)".*/\1/p' \
+  | xxd -r -p > tester-cli/artifacts/gaia.scale
+```
+
+3. Rebuild `gaia-tester-cli`.
 
 ## Project structure
 

@@ -60,7 +60,7 @@ enum MembershipCommand {
     Vote {
         signer: Persona,
         candidate: Persona,
-        approve: bool,
+        approve: VoteChoice,
     },
 }
 
@@ -76,7 +76,7 @@ enum ProposalCommand {
     Vote {
         signer: Persona,
         proposal_id: u32,
-        approve: bool,
+        approve: VoteChoice,
     },
     Tally {
         signer: Persona,
@@ -101,9 +101,21 @@ enum WatchCommand {
 
 #[derive(Subcommand, Debug)]
 enum LocalCommand {
-    StartHint,
-    ResetHint,
-    RefreshMetadataHint,
+    Start,
+    Reset,
+    RefreshMetadata,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy)]
+enum VoteChoice {
+    Yes,
+    No,
+}
+
+impl VoteChoice {
+    fn as_bool(self) -> bool {
+        matches!(self, VoteChoice::Yes)
+    }
 }
 
 #[tokio::main]
@@ -122,7 +134,7 @@ async fn main() -> Result<()> {
                 signer,
                 candidate,
                 approve,
-            } => membership::vote_candidate(&cli.url, signer, candidate, approve).await?,
+            } => membership::vote_candidate(&cli.url, signer, candidate, approve.as_bool()).await?,
         },
         TopCommand::Proposal { command } => match command {
             ProposalCommand::Submit {
@@ -138,7 +150,7 @@ async fn main() -> Result<()> {
                 signer,
                 proposal_id,
                 approve,
-            } => proposal::vote(&cli.url, signer, proposal_id, approve).await?,
+            } => proposal::vote(&cli.url, signer, proposal_id, approve.as_bool()).await?,
             ProposalCommand::Tally {
                 signer,
                 proposal_id,
@@ -160,9 +172,9 @@ async fn main() -> Result<()> {
             WatchCommand::Treasury => watch::treasury_balance(&cli.url).await?,
         },
         TopCommand::Local { command } => match command {
-            LocalCommand::StartHint => local::print_start_node_hint(),
-            LocalCommand::ResetHint => local::print_reset_hint(),
-            LocalCommand::RefreshMetadataHint => local::print_metadata_hint(),
+            LocalCommand::Start => local::print_start_node_hint(),
+            LocalCommand::Reset => local::print_reset_hint(),
+            LocalCommand::RefreshMetadata => local::print_metadata_hint(),
         },
     }
 
@@ -191,5 +203,66 @@ mod tests {
     fn reject_unknown_persona() {
         let parsed = Cli::try_parse_from(["gaia-tester", "persona", "preview", "zoe"]);
         assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn parse_membership_vote_command() {
+        let cli = Cli::try_parse_from([
+            "gaia-tester",
+            "membership",
+            "vote",
+            "alice",
+            "charlie",
+            "yes",
+        ])
+        .expect("membership vote should parse");
+        assert!(matches!(
+            cli.command,
+            TopCommand::Membership {
+                command: MembershipCommand::Vote {
+                    signer: Persona::Alice,
+                    candidate: Persona::Charlie,
+                    approve: VoteChoice::Yes,
+                }
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_proposal_submit_command() {
+        let cli = Cli::try_parse_from([
+            "gaia-tester",
+            "proposal",
+            "submit",
+            "alice",
+            "community-event",
+            "fund-public-workshop",
+            "500",
+            "240",
+        ])
+        .expect("proposal submit should parse");
+        assert!(matches!(
+            cli.command,
+            TopCommand::Proposal {
+                command: ProposalCommand::Submit {
+                    signer: Persona::Alice,
+                    amount: 500,
+                    event_block: 240,
+                    ..
+                }
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_local_refresh_metadata_command() {
+        let cli = Cli::try_parse_from(["gaia-tester", "local", "refresh-metadata"])
+            .expect("local refresh metadata hint should parse");
+        assert!(matches!(
+            cli.command,
+            TopCommand::Local {
+                command: LocalCommand::RefreshMetadata
+            }
+        ));
     }
 }

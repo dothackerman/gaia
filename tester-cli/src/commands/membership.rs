@@ -7,21 +7,27 @@ pub async fn propose_member(url: &str, signer: Persona, candidate: Persona) -> R
     let candidate_id = candidate.account_id()?;
     let payload = api::gaia::tx()
         .membership()
-        .propose_member(candidate_id.into());
+        .propose_member(candidate_id, api::bounded_str(candidate.label()));
 
-    let events = client
-        .tx()
-        .sign_and_submit_then_watch_default(&payload, &signer_key)
-        .await?
-        .wait_for_finalized_success()
-        .await?;
+    let events = api::submit_and_watch(&client, &payload, &signer_key).await?;
 
-    println!(
-        "Submitted membership::propose_member by {} for {} in block {}",
-        signer.label(),
-        candidate.label(),
-        events.block_hash()
-    );
+    if let Some(event) = events.find_first::<api::gaia::membership::events::CandidateProposed>()? {
+        println!(
+            "Membership candidate proposed: candidate={}, proposer={}",
+            event.candidate, event.proposed_by
+        );
+    } else {
+        println!("Membership candidate proposal finalized.");
+    }
+
+    if let Some(event) = events.find_first::<api::gaia::membership::events::MemberApproved>()? {
+        println!(
+            "Candidate immediately approved as active member: {}",
+            event.member
+        );
+    }
+
+    println!("Finalized extrinsic hash: {}", events.extrinsic_hash());
     Ok(())
 }
 
@@ -35,20 +41,29 @@ pub async fn vote_candidate(
     let signer_key = signer.keypair()?;
     let payload = api::gaia::tx()
         .membership()
-        .vote_on_candidate(candidate.account_id()?.into(), approve);
+        .vote_on_candidate(candidate.account_id()?, approve);
 
-    client
-        .tx()
-        .sign_and_submit_then_watch_default(&payload, &signer_key)
-        .await?
-        .wait_for_finalized_success()
-        .await?;
+    let events = api::submit_and_watch(&client, &payload, &signer_key).await?;
+
+    if let Some(event) = events.find_first::<api::gaia::membership::events::VoteCast>()? {
+        println!(
+            "Membership vote recorded: voter={}, candidate={}, approve={}",
+            event.voter, event.candidate, event.approve
+        );
+    } else {
+        println!("Membership vote finalized.");
+    }
+
+    if let Some(event) = events.find_first::<api::gaia::membership::events::MemberApproved>()? {
+        println!("Candidate approved as active member: {}", event.member);
+    }
 
     println!(
-        "Submitted membership::vote_on_candidate by {} for {} => {}",
+        "Submitted membership::vote_on_candidate by {} for {} => {} (extrinsic {}).",
         signer.label(),
         candidate.label(),
-        approve
+        approve,
+        events.extrinsic_hash()
     );
     Ok(())
 }
