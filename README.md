@@ -142,13 +142,13 @@ The tester CLI uses a committed metadata artifact: `tester-cli/artifacts/gaia.sc
 
 To refresh it after runtime changes:
 
-1. Run local node on `ws://127.0.0.1:9944`.
+1. Run local node with WS on `ws://127.0.0.1:9944` and HTTP RPC on `http://127.0.0.1:9933`.
 2. Fetch and decode metadata directly into `tester-cli/artifacts/gaia.scale`:
 
 ```bash
 curl -sS -H 'content-type: application/json' \
   -d '{"id":1,"jsonrpc":"2.0","method":"state_getMetadata","params":[]}' \
-  http://127.0.0.1:9944 \
+  http://127.0.0.1:9933 \
   | sed -n 's/.*"result":"0x\([^"]*\)".*/\1/p' \
   | xxd -r -p > tester-cli/artifacts/gaia.scale
 ```

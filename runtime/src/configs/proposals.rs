@@ -21,7 +21,7 @@ impl gaia_proposals::pallet::Config for Runtime {
     type Balance = Balance;
     type Membership = MembershipAdapter;
     type Treasury = gaia_treasury::Pallet<Runtime>;
-    // Normal mode: 7 days × 14 400 blocks/day = 100 800 blocks.
+    // Normal mode: 7 days × 14 400 blocks/day (6s block time) = 100 800 blocks.
     // Fast local mode (feature `fast-local`): 20 blocks.
     type VotingPeriod = RuntimeVotingPeriod;
 }
