@@ -4629,10 +4629,7 @@ name = "gaia-tester-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "assert_matches",
  "clap",
- "hex",
- "serde",
  "subxt 0.39.0",
  "subxt-signer 0.39.0",
  "tokio",

@@ -12,9 +12,9 @@ pub fn print_reset_hint() {
 
 pub fn print_metadata_hint() {
     println!("Refresh committed metadata artifact:");
-    println!("1) Start the node locally on ws://127.0.0.1:9944");
+    println!("1) Start the node locally (WS: ws://127.0.0.1:9944, HTTP: http://127.0.0.1:9933)");
     println!(
-        "2) curl -sS -H 'content-type: application/json' -d '{{\"id\":1,\"jsonrpc\":\"2.0\",\"method\":\"state_getMetadata\",\"params\":[]}}' http://127.0.0.1:9944"
+        "2) curl -sS -H 'content-type: application/json' -d '{{\"id\":1,\"jsonrpc\":\"2.0\",\"method\":\"state_getMetadata\",\"params\":[]}}' http://127.0.0.1:9933"
     );
     println!("3) Decode hex payload into tester-cli/artifacts/gaia.scale");
 }

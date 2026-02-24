@@ -3,26 +3,17 @@ use anyhow::Result;
 
 pub async fn proposal(url: &str, proposal_id: u32) -> Result<()> {
     let client = api::connect(url).await?;
+    let at = client.storage().at_latest().await?;
     let storage = api::gaia::storage().proposals().proposals(proposal_id);
-    let maybe = client.storage().at_latest().await?.fetch(&storage).await?;
+    let maybe = at.fetch(&storage).await?;
     let yes_key = api::gaia::storage()
         .proposals()
         .proposal_yes_count(proposal_id);
     let no_key = api::gaia::storage()
         .proposals()
         .proposal_no_count(proposal_id);
-    let yes_votes = client
-        .storage()
-        .at_latest()
-        .await?
-        .fetch_or_default(&yes_key)
-        .await?;
-    let no_votes = client
-        .storage()
-        .at_latest()
-        .await?
-        .fetch_or_default(&no_key)
-        .await?;
+    let yes_votes = at.fetch_or_default(&yes_key).await?;
+    let no_votes = at.fetch_or_default(&no_key).await?;
 
     match maybe {
         Some(record) => {

@@ -10,12 +10,33 @@ pub mod gaia {}
 pub type Client = OnlineClient<PolkadotConfig>;
 pub type ByteBoundedVec = gaia::runtime_types::bounded_collections::bounded_vec::BoundedVec<u8>;
 
+const MAX_NAME_LEN: usize = 128;
+const MAX_TITLE_LEN: usize = 128;
+const MAX_DESCRIPTION_LEN: usize = 1024;
+
 pub async fn connect(url: &str) -> Result<Client> {
     Ok(OnlineClient::<PolkadotConfig>::from_url(url).await?)
 }
 
-pub fn bounded_str(input: &str) -> ByteBoundedVec {
-    gaia::runtime_types::bounded_collections::bounded_vec::BoundedVec(input.as_bytes().to_vec())
+fn bounded_str(input: &str, max_len: usize, field: &str) -> Result<ByteBoundedVec> {
+    if input.len() > max_len {
+        bail!("{field} exceeds max length ({max_len} bytes)");
+    }
+    Ok(gaia::runtime_types::bounded_collections::bounded_vec::BoundedVec(
+        input.as_bytes().to_vec(),
+    ))
+}
+
+pub fn bounded_name(input: &str) -> Result<ByteBoundedVec> {
+    bounded_str(input, MAX_NAME_LEN, "name")
+}
+
+pub fn bounded_title(input: &str) -> Result<ByteBoundedVec> {
+    bounded_str(input, MAX_TITLE_LEN, "title")
+}
+
+pub fn bounded_description(input: &str) -> Result<ByteBoundedVec> {
+    bounded_str(input, MAX_DESCRIPTION_LEN, "description")
 }
 
 pub fn bounded_to_string(input: &ByteBoundedVec) -> String {

@@ -12,8 +12,8 @@ pub async fn submit(
     let client = api::connect(url).await?;
     let signer_key = signer.keypair()?;
     let payload = api::gaia::tx().proposals().submit_proposal(
-        api::bounded_str(&title),
-        api::bounded_str(&description),
+        api::bounded_title(&title)?,
+        api::bounded_description(&description)?,
         amount,
         event_block,
     );

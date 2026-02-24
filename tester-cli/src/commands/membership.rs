@@ -7,7 +7,7 @@ pub async fn propose_member(url: &str, signer: Persona, candidate: Persona) -> R
     let candidate_id = candidate.account_id()?;
     let payload = api::gaia::tx()
         .membership()
-        .propose_member(candidate_id, api::bounded_str(candidate.label()));
+        .propose_member(candidate_id, api::bounded_name(candidate.label())?);
 
     let events = api::submit_and_watch(&client, &payload, &signer_key).await?;
 
