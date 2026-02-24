@@ -1,6 +1,6 @@
 # Current build state
 
-Last updated: 2026-02-22 — clean code pass, un-ignored unit tests, comprehensive e2e integration tests.
+Last updated: 2026-02-24 — expanded edge-case integration tests.
 
 ## Node (`node/`)
 
@@ -59,21 +59,21 @@ Last updated: 2026-02-22 — clean code pass, un-ignored unit tests, comprehensi
 - Status: **comprehensive**
 - Crate name: `gaia-integration-tests`
 - Modules gated with `#[cfg(test)]` — no library warnings
-- Tests: 41 passing
-  - `membership.rs`: 13 tests (genesis, propose, vote, threshold, suspension)
-  - `treasury.rs`: 7 tests (genesis funding, deposit, disburse, error paths)
-  - `proposals.rs`: 13 tests (lifecycle, voting, tally, execution, error paths)
-  - `cross_pallet.rs`: 8 tests (I-1 treasury guard, I-2 active-member voting, I-3 single execution, suspension interactions, newly admitted members)
+- Tests: 54 passing
+  - `membership.rs`: 15 tests (genesis, propose, vote, threshold, suspension, single-member genesis, 5-member threshold boundary)
+  - `treasury.rs`: 9 tests (genesis funding, deposit, disburse, error paths, non-member deposit, multiple deposit accumulation)
+  - `proposals.rs`: 19 tests (lifecycle, voting, tally, execution, error paths, concurrent proposals, zero-amount proposal, majority boundary, non-member tally, vote storage persistence)
+  - `cross_pallet.rs`: 11 tests (I-1 treasury guard, I-2 active-member voting, I-3 single execution, suspension interactions, newly admitted members, suspended organizer execution, tally after all voters suspended)
 
 ## Build status
 
 | Command | Status |
 |---|---|
-| `cargo check` | pass (2026-02-22) |
-| `cargo clippy` | pass — GAIA pallet/runtime/integration changes clean; existing node-template warnings remain (2026-02-22) |
-| `cargo test` | pass — 106 tests total (25 membership + 17 proposals + 10 treasury + 41 integration + 9 runtime + 4 template) (2026-02-22) |
+| `cargo check` | pass (2026-02-24) |
+| `cargo clippy` | pass — GAIA pallet/runtime/integration changes clean; existing node-template warnings remain (2026-02-24) |
+| `cargo test` | pass — 119 tests total (25 membership + 17 proposals + 10 treasury + 54 integration + 9 runtime + 4 template) (2026-02-24) |
 | `cargo deny check licenses` | pass — all dependencies compliant (2026-02-21) |
-| `cargo build` | pass (2026-02-22) |
+| `cargo build` | pass (2026-02-24) |
 
 ## Upstream Warnings
 
@@ -90,3 +90,9 @@ Last updated: 2026-02-22 — clean code pass, un-ignored unit tests, comprehensi
 - Made `common::bounded_name()` and `common::eve()` public in integration tests; removed duplicate `bounded_name` from `membership.rs`.
 - Expanded integration test suite from 19 to 41 tests covering all invariants, error paths, and cross-pallet interactions.
 - Moved `genesis_seeds_initial_members` test from `lib.rs` into `membership.rs` module.
+- Expanded integration test suite from 41 to 54 tests with edge-case coverage:
+  - Added `ferdie()` helper and `new_test_ext_with_members()` custom genesis builder.
+  - Proposals: concurrent proposals, treasury contention, zero-amount proposal, exact majority boundary, non-member tally, vote storage persistence.
+  - Treasury: non-member deposit, multiple deposit accumulation.
+  - Membership: single-member genesis admission, 5-member threshold boundary.
+  - Cross-pallet: suspended organizer execution, tally after all voters suspended, newly admitted member + proposer suspension interaction.

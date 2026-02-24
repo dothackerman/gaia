@@ -263,3 +263,108 @@ fn suspended_member_cannot_propose_candidate() {
         );
     });
 }
+
+// ---------------------------------------------------------------------------
+// Edge cases: single-member genesis
+// ---------------------------------------------------------------------------
+
+/// With only one genesis member, the 80% threshold means the single
+/// member's vote is sufficient to admit a candidate (1*5=5 ≥ 1*4=4).
+#[test]
+fn single_member_genesis_admits_candidate() {
+    new_test_ext_with_members(&[(alice(), b"Alice")]).execute_with(|| {
+        assert_eq!(ActiveMemberCount::<gaia_runtime::Runtime>::get(), 1);
+
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(alice()),
+            dave(),
+            bounded_name(b"Dave")
+        ));
+        // 1 active → need ceil(80%) = 1 approval → single vote admits
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(alice()),
+            dave(),
+            true
+        ));
+        assert_eq!(
+            Members::<gaia_runtime::Runtime>::get(dave())
+                .unwrap()
+                .status,
+            MemberStatus::Active
+        );
+        assert_eq!(ActiveMemberCount::<gaia_runtime::Runtime>::get(), 2);
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Edge cases: threshold boundary with five members
+// ---------------------------------------------------------------------------
+
+/// With 5 active members the 80% threshold requires 4 approvals
+/// (4*5=20 ≥ 5*4=20). Three approvals are NOT enough (3*5=15 < 20).
+#[test]
+fn threshold_boundary_with_five_members() {
+    new_test_ext().execute_with(|| {
+        // Start with Alice, Bob, Charlie (3). Admit Dave + Eve = 5.
+        // -- admit Dave --
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(alice()),
+            dave(),
+            bounded_name(b"Dave")
+        ));
+        for voter in [alice(), bob(), charlie()] {
+            assert_ok!(Membership::vote_on_candidate(
+                RuntimeOrigin::signed(voter),
+                dave(),
+                true
+            ));
+        }
+        assert_eq!(ActiveMemberCount::<gaia_runtime::Runtime>::get(), 4);
+
+        // -- admit Eve --
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(alice()),
+            eve(),
+            bounded_name(b"Eve")
+        ));
+        for voter in [alice(), bob(), charlie(), dave()] {
+            assert_ok!(Membership::vote_on_candidate(
+                RuntimeOrigin::signed(voter),
+                eve(),
+                true
+            ));
+        }
+        assert_eq!(ActiveMemberCount::<gaia_runtime::Runtime>::get(), 5);
+
+        // -- propose Ferdie --
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(alice()),
+            ferdie(),
+            bounded_name(b"Ferdie")
+        ));
+
+        // 3 approvals out of 5 → 3*5=15 < 5*4=20 → NOT admitted
+        for voter in [alice(), bob(), charlie()] {
+            assert_ok!(Membership::vote_on_candidate(
+                RuntimeOrigin::signed(voter),
+                ferdie(),
+                true
+            ));
+        }
+        assert!(!Members::<gaia_runtime::Runtime>::contains_key(ferdie()));
+
+        // 4th approval → 4*5=20 ≥ 5*4=20 → admitted
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(dave()),
+            ferdie(),
+            true
+        ));
+        assert_eq!(
+            Members::<gaia_runtime::Runtime>::get(ferdie())
+                .unwrap()
+                .status,
+            MemberStatus::Active
+        );
+        assert_eq!(ActiveMemberCount::<gaia_runtime::Runtime>::get(), 6);
+    });
+}
