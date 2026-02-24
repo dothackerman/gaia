@@ -90,3 +90,46 @@ fn disburse_transfers_correct_amounts() {
         );
     });
 }
+
+// ---------------------------------------------------------------------------
+// Edge cases
+// ---------------------------------------------------------------------------
+
+/// `deposit_fee` only requires a signed origin — no membership check.
+/// A non-member (Dave) can deposit tokens into the treasury.
+#[test]
+fn non_member_can_deposit_fee() {
+    new_test_ext().execute_with(|| {
+        let treasury = gaia_treasury::Pallet::<Runtime>::account_id();
+        let treasury_before = Balances::free_balance(treasury.clone());
+        let dave_before = Balances::free_balance(dave());
+        assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(dave()), 42));
+        assert_eq!(Balances::free_balance(dave()), dave_before - 42);
+        assert_eq!(Balances::free_balance(treasury), treasury_before + 42);
+        assert_eq!(
+            gaia_treasury::pallet::TreasuryBalance::<Runtime>::get(),
+            42
+        );
+    });
+}
+
+/// Multiple deposits from different accounts accumulate correctly in
+/// the treasury's sovereign account AND the explicit ledger.
+#[test]
+fn multiple_deposits_accumulate() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 100));
+        assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(bob()), 200));
+        assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(charlie()), 50));
+        assert_eq!(
+            gaia_treasury::pallet::TreasuryBalance::<Runtime>::get(),
+            350
+        );
+        let treasury = gaia_treasury::Pallet::<Runtime>::account_id();
+        // Expected: genesis treasury balance + 350 deposited
+        assert_eq!(
+            Balances::free_balance(treasury),
+            1_000_000_000_000 + 350
+        );
+    });
+}
