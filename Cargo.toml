@@ -13,6 +13,7 @@ members = [
     "pallets/template",
     "pallets/treasury",
     "runtime",
+    "tester-cli",
     "tests",
 ]
 resolver = "2"

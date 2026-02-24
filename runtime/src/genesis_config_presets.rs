@@ -65,8 +65,7 @@ fn testnet_genesis(
         "runtime genesis requires at least one initial member"
     );
 
-    let treasury_account: AccountId =
-        gaia_treasury::Pallet::<crate::Runtime>::account_id();
+    let treasury_account: AccountId = gaia_treasury::Pallet::<crate::Runtime>::account_id();
     let mut balances = endowed_accounts
         .iter()
         .cloned()
@@ -103,6 +102,10 @@ pub fn development_config_genesis() -> Value {
         vec![
             Sr25519Keyring::Alice.to_account_id(),
             Sr25519Keyring::Bob.to_account_id(),
+            Sr25519Keyring::Charlie.to_account_id(),
+            Sr25519Keyring::Dave.to_account_id(),
+            Sr25519Keyring::Eve.to_account_id(),
+            Sr25519Keyring::Ferdie.to_account_id(),
             Sr25519Keyring::AliceStash.to_account_id(),
             Sr25519Keyring::BobStash.to_account_id(),
         ],
@@ -195,8 +198,7 @@ mod tests {
     /// Return the SS58 address of the treasury sovereign account.
     fn treasury_account_ss58() -> String {
         use sp_core::crypto::Ss58Codec;
-        let treasury_account: AccountId =
-            gaia_treasury::Pallet::<crate::Runtime>::account_id();
+        let treasury_account: AccountId = gaia_treasury::Pallet::<crate::Runtime>::account_id();
         treasury_account.to_ss58check()
     }
 

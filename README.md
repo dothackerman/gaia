@@ -45,6 +45,116 @@ For a deeper look at the problem domain and requirements engineering, see
 [`docs/domain-model.md`](docs/domain-model.md) — includes a full Mermaid class
 diagram of the *Fachdomäne*.
 
+## Tester CLI (local member UX)
+
+The workspace now includes `gaia-tester-cli`, a human-focused local tester for
+manual member flows. It is intended for one person to run through:
+`submit -> vote -> tally -> execute` in one session.
+
+### Command contract
+
+The command surface is intentionally small:
+
+- `persona` — list and preview seeded local personas (`Alice`, `Bob`, `Charlie`, etc.)
+- `membership` — submit and vote member admission calls
+- `proposal` — submit/vote/tally/execute proposal calls (`vote` uses `yes|no`)
+- `treasury` — deposit fees into treasury
+- `watch` — inspect proposal state and treasury balance
+- `local` — local helper hints (`start`, `reset`, `refresh-metadata`)
+
+### Fast local tester mode
+
+For practical local manual testing, runtime voting period can be shortened with
+feature `fast-local`:
+
+```bash
+cargo run -p gaia-node --features gaia-runtime/fast-local -- --dev --tmp --rpc-external --unsafe-rpc-external
+```
+
+- Default runtime behavior remains unchanged.
+- `fast-local` is opt-in and intended only for local tester sessions.
+
+### Getting started (clone to first interaction)
+
+1. Clone and enter repo:
+
+```bash
+git clone <your-gaia-repo-url>
+cd gaia
+```
+
+2. Build tester CLI:
+
+```bash
+cargo build -p gaia-tester-cli
+```
+
+3. Start local node (fast local tester mode):
+
+```bash
+cargo run -p gaia-node --features gaia-runtime/fast-local -- --dev --tmp --rpc-external --unsafe-rpc-external
+```
+
+The `--dev` preset endows seeded tester personas (`Alice` through `Ferdie`) so
+membership/proposal/treasury calls can pay fees immediately.
+
+4. In a second terminal, list personas:
+
+```bash
+cargo run -p gaia-tester-cli -- persona list
+```
+
+Expected first output:
+
+```text
+Available seeded personas:
+- Alice
+- Bob
+- Charlie
+- Dave
+- Eve
+- Ferdie
+```
+
+5. Preview first signer identity:
+
+```bash
+cargo run -p gaia-tester-cli -- persona preview alice
+```
+
+6. Perform first member action (example: propose Charlie):
+
+```bash
+cargo run -p gaia-tester-cli -- membership propose alice charlie
+```
+
+Next commands to discover:
+
+```bash
+cargo run -p gaia-tester-cli -- proposal --help
+cargo run -p gaia-tester-cli -- watch --help
+cargo run -p gaia-tester-cli -- local --help
+```
+
+### Metadata artifact refresh
+
+The tester CLI uses a committed metadata artifact: `tester-cli/artifacts/gaia.scale`.
+
+To refresh it after runtime changes:
+
+1. Run local node with WS on `ws://127.0.0.1:9944` and HTTP RPC on `http://127.0.0.1:9933`.
+2. Fetch and decode metadata directly into `tester-cli/artifacts/gaia.scale`:
+
+```bash
+curl -sS -H 'content-type: application/json' \
+  -d '{"id":1,"jsonrpc":"2.0","method":"state_getMetadata","params":[]}' \
+  http://127.0.0.1:9933 \
+  | sed -n 's/.*"result":"0x\([^"]*\)".*/\1/p' \
+  | xxd -r -p > tester-cli/artifacts/gaia.scale
+```
+
+3. Rebuild `gaia-tester-cli`.
+
 ## Project structure
 
 | Directory | Purpose |
@@ -54,6 +164,7 @@ diagram of the *Fachdomäne*.
 | `pallets/proposals/` | Proposal lifecycle — submit, vote, execute |
 | `runtime/` | Wires pallets into a Substrate runtime |
 | `node/` | Substrate node binary |
+| `tester-cli/` | Human-focused Subxt tester CLI for local member UX |
 | `docs/` | Architecture decisions and build status |
 
 ## Status
