@@ -87,6 +87,7 @@ substrate-build-script-utils.workspace = true
 [features]
 default = ["std"]
 std = ["gaia-runtime/std"]
+fast-local = ["gaia-runtime/fast-local"]
 # Dependencies that are only required if runtime benchmarking should be build.
 runtime-benchmarks = [
 	"frame-benchmarking-cli/runtime-benchmarks",

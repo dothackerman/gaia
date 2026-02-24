@@ -1,6 +1,6 @@
 # Current build state
 
-Last updated: 2026-02-24 — expanded edge-case integration tests.
+Last updated: 2026-02-24 — added tester CLI draft integration and local fast mode.
 
 ## Node (`node/`)
 
@@ -64,6 +64,15 @@ Last updated: 2026-02-24 — expanded edge-case integration tests.
   - `treasury.rs`: 9 tests (genesis funding, deposit, disburse, error paths, non-member deposit, multiple deposit accumulation)
   - `proposals.rs`: 19 tests (lifecycle, voting, tally, execution, error paths, concurrent proposals, zero-amount proposal, majority boundary, non-member tally, vote storage persistence)
   - `cross_pallet.rs`: 11 tests (I-1 treasury guard, I-2 active-member voting, I-3 single execution, suspension interactions, newly admitted members, suspended organizer execution, tally after all voters suspended)
+
+
+## Tester CLI (`tester-cli/`)
+
+- Status: **in progress**
+- Crate name: `gaia-tester-cli`
+- Scope: human local tester workflows (persona, membership, proposal, treasury, watch, local helpers)
+- API mode: typed Subxt bindings using committed metadata artifact (`tester-cli/artifacts/gaia.scale`)
+- Local mode: runtime `fast-local` feature shortens voting period for practical manual lifecycle testing
 
 ## Build status
 
