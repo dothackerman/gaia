@@ -78,6 +78,7 @@ Last updated: 2026-02-24 — completed tester CLI local-member UX baseline.
 - Error mapping: runtime dispatch failures surfaced as `Pallet::Error` labels when available
 - Vote CLI contract: explicit `yes|no` values (no positional bool ambiguity)
 - Local mode: runtime `fast-local` feature shortens voting period for practical manual lifecycle testing
+- Smoke verification (2026-02-24): `treasury deposit alice 1000` → `proposal submit` (id=1) → votes (`bob yes`, `charlie yes`) → `tally` approved → `execute` amount=10 → `watch treasury` shows `990`.
 
 ## Build status
 
