@@ -5,12 +5,33 @@ A private, standalone Substrate blockchain for community self-governance.
 ## What is GAIA?
 
 GAIA gives a closed community its own sovereign chain — no central authority,
-no relay-chain dependency, just the members themselves. Members pay annual fees
-into a shared treasury, propose how to spend those funds, and vote with equal
-weight. When a proposal passes, the treasury disburses automatically.
+no relay-chain dependency, just the members themselves. Members fund a shared
+treasury, propose how to spend those funds, and vote with equal weight. When a
+proposal passes, the treasury disburses automatically.
 
 It is a solochain, not a parachain. The community controls its own consensus,
 upgrades, and governance without external dependencies.
+
+## Current state vs target model
+
+### Current state (implemented now)
+
+- Signed chain accounts and membership records are distinct concepts.
+- Membership rights are vote-gated through the membership pallet
+  (`propose_member` + `vote_on_candidate`).
+- Only active members can submit proposals and vote on proposals.
+- Any signed account can currently deposit funds into treasury.
+- The local tester CLI currently operates on seeded personas
+  (`Alice`, `Bob`, `Charlie`, `Dave`, `Eve`, `Ferdie`).
+
+### Target model (future goal)
+
+- A signed transacting account should be equivalent to an admitted member
+  account in the private network model.
+- New member accounts should only become usable after approval by existing
+  members.
+- Recurring fee policy (for example annual rhythm) should be protocol-enforced
+  rather than only a social convention.
 
 ## How it works
 
@@ -21,8 +42,8 @@ Member fees ──▸ Treasury ◂── approved proposals draw from here
  Proposals: submit → vote → tally → execute (once)
 ```
 
-1. **Members** register on-chain. Only active members can submit proposals and
-   vote.
+1. **Members** are admitted on-chain through peer voting. Only active members
+   can submit proposals and vote.
 2. **Treasury** collects fees and holds the community's funds. Its balance can
    never go negative.
 3. **Proposals** let any active member request a spend. All members vote with
@@ -51,7 +72,7 @@ The workspace now includes `gaia-tester-cli`, a human-focused local tester for
 manual member flows. It is intended for one person to run through:
 `submit -> vote -> tally -> execute` in one session.
 
-### Command contract
+### What you can experiment with today
 
 The command surface is intentionally small:
 
@@ -61,6 +82,28 @@ The command surface is intentionally small:
 - `treasury` — deposit fees into treasury
 - `watch` — inspect proposal state and treasury balance
 - `local` — local helper hints (`start`, `reset`, `refresh-metadata`)
+
+Notes for local testing:
+
+- `gaia-tester-cli` arguments are persona-based today; it is optimized for
+  deterministic local experiments, not arbitrary account management.
+- `local` commands are help-oriented utilities for running/resetting a dev
+  session and refreshing metadata.
+
+### Built-in CLI help
+
+The CLI already provides a help function at every level (top-level + each
+subcommand):
+
+```bash
+cargo run -p gaia-tester-cli -- --help
+cargo run -p gaia-tester-cli -- help
+cargo run -p gaia-tester-cli -- membership --help
+cargo run -p gaia-tester-cli -- proposal --help
+cargo run -p gaia-tester-cli -- treasury --help
+cargo run -p gaia-tester-cli -- watch --help
+cargo run -p gaia-tester-cli -- local --help
+```
 
 ### Fast local tester mode
 
@@ -74,7 +117,7 @@ cargo run -p gaia-node --features gaia-runtime/fast-local -- --dev --tmp --rpc-e
 - Default runtime behavior remains unchanged.
 - `fast-local` is opt-in and intended only for local tester sessions.
 
-### Getting started (clone to first interaction)
+### Getting started (broad local-testing overview)
 
 1. Clone and enter repo:
 
@@ -98,7 +141,14 @@ cargo run -p gaia-node --features gaia-runtime/fast-local -- --dev --tmp --rpc-e
 The `--dev` preset endows seeded tester personas (`Alice` through `Ferdie`) so
 membership/proposal/treasury calls can pay fees immediately.
 
-4. In a second terminal, list personas:
+4. In a second terminal, inspect the CLI surface first:
+
+```bash
+cargo run -p gaia-tester-cli -- --help
+cargo run -p gaia-tester-cli -- local --help
+```
+
+5. Confirm seeded local personas:
 
 ```bash
 cargo run -p gaia-tester-cli -- persona list
@@ -116,22 +166,35 @@ Available seeded personas:
 - Ferdie
 ```
 
-5. Preview first signer identity:
+6. Preview a signer identity:
 
 ```bash
 cargo run -p gaia-tester-cli -- persona preview alice
 ```
 
-6. Perform first member action (example: propose Charlie):
+7. Run one membership + proposal flow to experiment end-to-end:
 
 ```bash
-cargo run -p gaia-tester-cli -- membership propose alice charlie
+cargo run -p gaia-tester-cli -- membership propose alice dave
+cargo run -p gaia-tester-cli -- membership vote alice dave yes
+cargo run -p gaia-tester-cli -- membership vote bob dave yes
+cargo run -p gaia-tester-cli -- membership vote charlie dave yes
+cargo run -p gaia-tester-cli -- proposal submit alice "workshop" "fund-local-event" 10 240
+cargo run -p gaia-tester-cli -- proposal vote bob 1 yes
+cargo run -p gaia-tester-cli -- proposal vote dave 1 yes
+cargo run -p gaia-tester-cli -- watch proposal 1
+# wait until current chain block is greater than vote_end, then:
+cargo run -p gaia-tester-cli -- proposal tally alice 1
+cargo run -p gaia-tester-cli -- proposal execute alice 1
+cargo run -p gaia-tester-cli -- watch treasury
 ```
 
-Next commands to discover:
+Use help at any point to discover or re-check parameters:
 
 ```bash
+cargo run -p gaia-tester-cli -- membership --help
 cargo run -p gaia-tester-cli -- proposal --help
+cargo run -p gaia-tester-cli -- treasury --help
 cargo run -p gaia-tester-cli -- watch --help
 cargo run -p gaia-tester-cli -- local --help
 ```

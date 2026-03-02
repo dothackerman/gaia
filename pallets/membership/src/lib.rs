@@ -12,9 +12,10 @@
 //! - An **80 % majority** of active members is required for approval.
 //! - Suspended members cannot propose or vote.
 //!
-//! ### Suspension (out of scope)
+//! ### Suspension (implemented)
 //!
-//! Suspension mechanics are deferred to a future iteration. Two paths exist:
+//! Suspension mechanics are active in the current pallet implementation. Two
+//! paths are supported:
 //!
 //! - **Self-initiated**: a member voluntarily suspends themselves.
 //! - **Unanimous peer vote**: all other active members vote to suspend

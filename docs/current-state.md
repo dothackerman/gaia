@@ -1,6 +1,6 @@
 # Current build state
 
-Last updated: 2026-02-24 — completed tester CLI local-member UX baseline.
+Last updated: 2026-03-02 — documentation/compliance state synchronized with current implementation.
 
 ## Node (`node/`)
 
@@ -84,11 +84,13 @@ Last updated: 2026-02-24 — completed tester CLI local-member UX baseline.
 
 | Command | Status |
 |---|---|
-| `cargo check` | pass — GAIA workspace clean; known upstream warnings only (2026-02-24) |
-| `cargo clippy` | pass — GAIA pallet/runtime/integration changes clean; existing node-template warnings remain (2026-02-24) |
-| `cargo test` | pass — 124 tests total (25 membership + 17 proposals + 10 treasury + 54 integration + 9 runtime + 4 template + 5 tester-cli) (2026-02-24) |
-| `cargo deny check licenses` | pass — all dependencies compliant (2026-02-21) |
-| `cargo build` | pass (2026-02-24) |
+| `cargo check` | pass — GAIA workspace clean; known upstream warnings only (2026-03-02) |
+| `cargo clippy` | pass — GAIA pallet/runtime/integration changes clean; existing node-template warnings remain (2026-03-02) |
+| `cargo test` | pass — 124 tests total (25 membership + 17 proposals + 10 treasury + 54 integration + 9 runtime + 4 template + 5 tester-cli) (2026-03-02) |
+| `cargo deny check licenses -A parse-error` | pass — licenses ok (2026-03-02) |
+| `cargo build` | pass (2026-03-02) |
+
+- License policy note: `cargo-deny` graph is scoped to supported host target `x86_64-unknown-linux-gnu` in `deny.toml`; SPDX parse metadata warnings from upstream crates are treated as non-blocking via `-A parse-error`.
 
 ## Upstream Warnings
 

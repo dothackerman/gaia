@@ -27,6 +27,10 @@ docs/
   decisions/                       # ADRs (Architecture Decision Records)
     001-standalone-chain.md
     002-versioning-policy.md
+    003-wasm32v1-none-target.md
+    004-project-license-gpl-3.0-or-later.md
+    005-suspension-unanimity.md
+    006-treasury-sovereign-account.md
 .github/
   copilot-instructions.md          # GitHub Copilot session rules (references this file)
   agents/
@@ -45,7 +49,7 @@ node/                              # Substrate node binary
 runtime/                           # Runtime crate — wires pallets together
 pallets/
   membership/                      # Pallet: member registry (implemented)
-  treasury/                        # Pallet: community fund (scaffold)
+  treasury/                        # Pallet: community fund (implemented)
   proposals/                       # Pallet: spending proposals + voting (implemented)
 ```
 
