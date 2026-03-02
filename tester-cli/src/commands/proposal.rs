@@ -59,7 +59,7 @@ pub async fn vote(url: &str, signer: Persona, proposal_id: u32, approve: bool) -
     Ok(())
 }
 
-pub async fn tally(url: &str, signer: Persona, proposal_id: u32) -> Result<()> {
+pub async fn finalize(url: &str, signer: Persona, proposal_id: u32) -> Result<()> {
     let client = api::connect(url).await?;
     let signer_key = signer.keypair()?;
     let payload = api::gaia::tx().proposals().tally_proposal(proposal_id);
@@ -67,11 +67,11 @@ pub async fn tally(url: &str, signer: Persona, proposal_id: u32) -> Result<()> {
     let events = api::submit_and_watch(&client, &payload, &signer_key).await?;
 
     if events.has::<api::gaia::proposals::events::ProposalApproved>()? {
-        println!("Tallied proposal {proposal_id}: Approved.");
+        println!("Finalized proposal {proposal_id}: Approved.");
     } else if events.has::<api::gaia::proposals::events::ProposalRejected>()? {
-        println!("Tallied proposal {proposal_id}: Rejected.");
+        println!("Finalized proposal {proposal_id}: Rejected.");
     } else {
-        println!("Tallied proposal {proposal_id}.");
+        println!("Finalized proposal {proposal_id}.");
     }
 
     println!("Finalized extrinsic hash: {}", events.extrinsic_hash());
