@@ -1,129 +1,137 @@
 # Current build state
 
-Last updated: 2026-03-02 — documentation/compliance state synchronized with current implementation.
+Last updated: 2026-03-02 (membership governance + CLI UX upgrade).
 
 ## Node (`node/`)
 
-- Status: **imported** — node crate present (from solochain template)
+- Status: **imported** (solochain template node)
 
 ## Runtime (`runtime/`)
 
-- Status: **integrating GAIA pallets**
-- Runtime now wires: `template`, `membership`, `treasury`, `proposals`
-- Runtime config split: pallet-specific files under `runtime/src/configs/`
-- Development preset now endows tester personas (`Alice`, `Bob`, `Charlie`, `Dave`, `Eve`, `Ferdie`) for deterministic local CLI fee payment.
-
-## Pallet: template (`pallets/template/`)
-
-- Status: **imported** — template pallet present (from solochain template)
+- Status: **GAIA pallets wired**
+- Pallets wired: `template`, `membership`, `treasury`, `proposals`
+- Runtime `spec_version`: **101** (bumped for membership interface/storage changes)
+- Development preset endows tester personas (`Alice`, `Bob`, `Charlie`, `Dave`, `Eve`, `Ferdie`)
+- Voting periods:
+  - normal: `100_800` blocks (~7 days)
+  - `fast-local`: `20` blocks
 
 ## Pallet: membership (`pallets/membership/`)
 
-- Status: **implemented**
-- Crate name: `gaia-membership`
-- Storage: `Members`, `ActiveMemberCount`, `Candidates`, `CandidateVotes`, `CandidateApprovalCount`, `SuspensionVotes`, `SuspensionApprovalCount`
-- Dispatchables: `propose_member`, `vote_on_candidate`, `suspend_self`, `vote_suspend_member`
-- Trait: `MembershipChecker<AccountId>` with `is_active_member()`
-- Genesis: supports configured initial members via `GenesisConfig.initial_members`
-- Tests: 25 unit tests passing
+- Status: **implemented** (`gaia-membership`)
+- Membership governance model is now **ID-based, time-bounded proposals**
+- Storage:
+  - `Members`, `ActiveMemberCount`
+  - `MembershipProposalCount`, `MembershipProposals`
+  - `ActiveProposalByCandidate`
+  - `MembershipProposalVotes`, `MembershipProposalYesCount`, `MembershipProposalNoCount`
+  - `SuspensionVotes`, `SuspensionApprovalCount`
+- Membership proposal status: `Active`, `Approved`, `Rejected`
+- Dispatchables:
+  - `propose_member(candidate, name)`
+  - `vote_on_candidate(proposal_id, approve)`
+  - `finalize_proposal(proposal_id)`
+  - `suspend_self()`
+  - `vote_suspend_member(target, approve)`
+- Behavior:
+  - One active proposal per candidate
+  - Approval threshold is 80% of a submit-time active-member snapshot
+  - Early approval if threshold is met before deadline
+  - Active-member-gated finalize after deadline rejects if threshold not met
+- Tests: 30 unit tests passing
 
 ## Pallet: treasury (`pallets/treasury/`)
 
-- Status: **implemented**
-- Crate name: `gaia-treasury`
+- Status: **implemented** (`gaia-treasury`)
 - Runtime integration: wired
 - Storage: `TreasuryBalance`
 - Dispatchables: `deposit_fee`, `disburse`
 - Events: `FeeDeposited`, `Disbursed`
-- Trait: implements `TreasuryHandler<AccountId, Balance>` for proposals
-- Account model: PalletId-derived sovereign account with fungible transfers
-- Public API: `account_id()` exposes the sovereign account for external use
+- Trait implementation: `TreasuryHandler<AccountId, Balance>` for proposals
+- Account model: PalletId-derived sovereign account backed by `pallet_balances`
 - Tests: 10 unit tests passing
 
 ## Pallet: proposals (`pallets/proposals/`)
 
-- Status: **implemented**
-- Crate name: `gaia-proposals`
+- Status: **implemented** (`gaia-proposals`)
 - Runtime integration: wired
-- Interface ownership: defines downstream cross-pallet traits `MembershipChecker` and `TreasuryHandler`
-- Runtime adapters: wired in `runtime/src/configs/proposals.rs`
+- Interface ownership: defines cross-pallet traits `MembershipChecker` and `TreasuryHandler`
 - Storage: `ProposalCount`, `Proposals`, `ProposalVotes`, `ProposalYesCount`, `ProposalNoCount`
 - Dispatchables: `submit_proposal`, `vote_on_proposal`, `tally_proposal`, `execute_proposal`
-- Lifecycle: `Active` → `Approved`/`Rejected` → `Executed` (terminal)
-- Voting: simple majority (yes > no); window length configurable via `VotingPeriod` constant (100 800 blocks / 7 days in runtime)
-- Execution: organizer-only via `NotOrganizer` error guard
-- Invariants: I-2 (active-member check on every vote), I-3 (single-execution guard)
+- Lifecycle: `Active -> Approved/Rejected -> Executed`
+- Voting semantics: simple majority at finalize (`yes > no`) after voting window
+- Invariants enforced:
+  - I-2: active-member check on every vote
+  - I-3: single execution guard
 - Tests: 17 unit tests passing
 
 ## Integration tests (`tests/`)
 
-- Status: **comprehensive**
-- Crate name: `gaia-integration-tests`
-- Modules gated with `#[cfg(test)]` — no library warnings
-- Tests: 54 passing
-  - `membership.rs`: 15 tests (genesis, propose, vote, threshold, suspension, single-member genesis, 5-member threshold boundary)
-  - `treasury.rs`: 9 tests (genesis funding, deposit, disburse, error paths, non-member deposit, multiple deposit accumulation)
-  - `proposals.rs`: 19 tests (lifecycle, voting, tally, execution, error paths, concurrent proposals, zero-amount proposal, majority boundary, non-member tally, vote storage persistence)
-  - `cross_pallet.rs`: 11 tests (I-1 treasury guard, I-2 active-member voting, I-3 single execution, suspension interactions, newly admitted members, suspended organizer execution, tally after all voters suspended)
-
+- Status: **comprehensive** (`gaia-integration-tests`)
+- Module counts:
+  - `membership.rs`: 20 tests
+  - `proposals.rs`: 19 tests
+  - `treasury.rs`: 9 tests
+  - `cross_pallet.rs`: 10 tests
+- Total integration tests: 58
 
 ## Tester CLI (`tester-cli/`)
 
-- Status: **implemented** (local tester UX baseline)
-- Crate name: `gaia-tester-cli`
-- Scope: human local tester workflows (persona, membership, proposal, treasury, watch, local helpers)
-- API mode: typed Subxt bindings using committed metadata artifact (`tester-cli/artifacts/gaia.scale`)
-- Metadata artifact: refreshed from local node RPC (non-empty, committed SCALE bytes)
-- UX output: finalized extrinsic hash + typed pallet event summaries for membership/proposal/treasury actions
-- Error mapping: runtime dispatch failures surfaced as `Pallet::Error` labels when available
-- Vote CLI contract: explicit `yes|no` values (no positional bool ambiguity)
-- Local mode: runtime `fast-local` feature shortens voting period for practical manual lifecycle testing
-- Smoke verification (2026-02-24): `treasury deposit alice 1000` → `proposal submit` (id=1) → votes (`bob yes`, `charlie yes`) → `tally` approved → `execute` amount=10 → `watch treasury` shows `990`.
+- Status: **implemented** (`gaia-tester-cli`)
+- API mode: typed Subxt bindings using committed metadata (`tester-cli/artifacts/gaia.scale`)
+- Tests: 6 parser tests passing
+- Command namespaces:
+  - `personas`
+  - `memberships`
+  - `proposals`
+  - `treasury`
+  - `watch`
+  - `local`
+- Contract changes:
+  - Membership voting targets `proposal_id` (not candidate account)
+  - Membership finalize command: `memberships finalize`
+  - Treasury proposal finalize command at CLI level: `proposals finalize` (runtime call is `tally_proposal`)
+- Watch UX:
+  - `watch proposals [id]`
+  - `watch memberships [id]`
+  - List defaults: `--state active --order newest`
+  - State/order filters supported for lists
+  - Pager behavior:
+    - TTY: auto pager
+    - non-TTY: raw output
+    - uses `$PAGER`, fallback `less -FR`
+    - explicit overrides: `--pager`, `--no-pager`
+
+## Governance hardening status
+
+- Implemented thresholds are intentionally simple:
+  - treasury proposals: `yes > no` (no quorum yet)
+  - membership proposals: 80% snapshot threshold (no turnout requirement yet)
+  - suspension: unanimity of all other active members
+- This is flagged for future hardening work (quorum/turnout policy and threshold maturity).
 
 ## Build status
 
 | Command | Status |
 |---|---|
-| `cargo check` | pass — GAIA workspace clean; known upstream warnings only (2026-03-02) |
-| `cargo clippy` | pass — GAIA pallet/runtime/integration changes clean; existing node-template warnings remain (2026-03-02) |
-| `cargo test` | pass — 124 tests total (25 membership + 17 proposals + 10 treasury + 54 integration + 9 runtime + 4 template + 5 tester-cli) (2026-03-02) |
-| `cargo deny check licenses -A parse-error` | pass — licenses ok (2026-03-02) |
-| `cargo build` | pass (2026-03-02) |
+| `cargo check` | pass |
+| `cargo clippy` | pass (existing node-template warnings remain) |
+| `cargo test` | pass (134 tests total) |
+| `cargo build` | pass |
 
-- License policy note: `cargo-deny` graph is scoped to supported host target `x86_64-unknown-linux-gnu` in `deny.toml`; SPDX parse metadata warnings from upstream crates are treated as non-blocking via `-A parse-error`.
+## Upstream warnings
 
-## Upstream Warnings
+- Node-template clippy warning family remains in `node/` (`clippy::result_large_err`).
+- `polkadot-overseer`: cycle-detection informational output during build.
+- `trie-db v0.30.0`: future-incompatibility warning from upstream dependency.
 
-- 2026-02-24 — Node template clippy warnings (`clippy::result_large_err`) in `node/` (benchmarking/command/service/main). Treated as template-origin warnings for now.
-- 2026-02-24 — `polkadot-overseer`: cycle detection output during build ("Found 3 strongly connected components which includes at least one cycle each").
-- 2026-02-24 — WASM runtime build target recommendation: `wasm32v1-none` is supported in Rust >= 1.84 (see `docs/decisions/003-wasm32v1-none-target.md`).
-- 2026-02-24 — `trie-db v0.30.0`: future-incompatibility warning (may be rejected by a future version of Rust). Consider running `cargo report future-incompatibilities --id 1`.
+## Latest branch changes
 
-## Latest changes (this branch)
-
-- Updated `development_config_genesis` endowments to fund all seeded tester personas used by `gaia-tester-cli`.
-- Regenerated `tester-cli/artifacts/gaia.scale` from a running local node RPC (`state_getMetadata`) and restored typed Subxt codegen.
-- Aligned tester CLI extrinsics with current runtime metadata:
-  - `membership propose` now submits both candidate account and bounded name.
-  - `proposal submit` now uses bounded title/description arguments.
-- Added shared transaction helper in `tester-cli/src/api.rs`:
-  - waits for finalized success,
-  - decodes runtime dispatch errors into readable `Pallet::Error` labels,
-  - standardizes event/result reporting.
-- Improved command feedback for human testers:
-  - membership/proposal/treasury commands now print typed event summaries and finalized extrinsic hashes.
-  - `watch proposal` now includes yes/no vote counts and `vote_end`.
-- Simplified local helper command names to `start`, `reset`, `refresh-metadata`.
-- Added tester CLI parser coverage to 5 unit tests, including membership vote (`yes|no`) and local refresh metadata command parsing.
-- Removed all `#[ignore]` markers from pallet unit tests — all 50 pallet tests now run by default.
-- Made `treasury::account_id()` public (was `pub(crate)`) for integration test access.
-- Gated integration test modules with `#[cfg(test)]` — eliminates unused-import warnings during `cargo check`.
-- Made `common::bounded_name()` and `common::eve()` public in integration tests; removed duplicate `bounded_name` from `membership.rs`.
-- Expanded integration test suite from 19 to 41 tests covering all invariants, error paths, and cross-pallet interactions.
-- Moved `genesis_seeds_initial_members` test from `lib.rs` into `membership.rs` module.
-- Expanded integration test suite from 41 to 54 tests with edge-case coverage:
-  - Added `ferdie()` helper and `new_test_ext_with_members()` custom genesis builder.
-  - Proposals: concurrent proposals, treasury contention, zero-amount proposal, exact majority boundary, non-member tally, vote storage persistence.
-  - Treasury: non-member deposit, multiple deposit accumulation.
-  - Membership: single-member genesis admission, 5-member threshold boundary.
-  - Cross-pallet: suspended organizer execution, tally after all voters suspended, newly admitted member + proposer suspension interaction.
+- Refactored membership governance to proposal IDs with deadline-based finalization.
+- Added membership voting period runtime constant aligned with proposal defaults.
+- Migrated membership and integration tests to ID-based membership workflow.
+- Refactored CLI namespaces to plural nouns (`personas`, `memberships`, `proposals`).
+- Renamed treasury proposal CLI verb from `tally` to `finalize`.
+- Added watch list/detail UX for proposals and memberships with state/order filters.
+- Added pager integration for long watch list output (`$PAGER`, fallback `less -FR`).
+- Refreshed `tester-cli/artifacts/gaia.scale` to match runtime interface changes.

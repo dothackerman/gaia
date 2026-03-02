@@ -4,244 +4,207 @@ A private, standalone Substrate blockchain for community self-governance.
 
 ## What is GAIA?
 
-GAIA gives a closed community its own sovereign chain — no central authority,
-no relay-chain dependency, just the members themselves. Members fund a shared
-treasury, propose how to spend those funds, and vote with equal weight. When a
-proposal passes, the treasury disburses automatically.
+GAIA gives a closed community its own sovereign chain: members fund a shared
+treasury, submit spending proposals, and vote with equal weight.
 
 It is a solochain, not a parachain. The community controls its own consensus,
-upgrades, and governance without external dependencies.
+upgrades, and governance.
 
 ## Current state vs target model
 
 ### Current state (implemented now)
 
 - Signed chain accounts and membership records are distinct concepts.
-- Membership rights are vote-gated through the membership pallet
-  (`propose_member` + `vote_on_candidate`).
-- Only active members can submit proposals and vote on proposals.
+- Membership rights are vote-gated through membership proposals
+  (`memberships propose` -> `memberships vote` -> `memberships finalize`).
+- Membership proposals are ID-based and time-bounded (`vote_end` deadline).
+- Only active members can submit proposals, vote, and finalize membership proposals.
 - Any signed account can currently deposit funds into treasury.
-- The local tester CLI currently operates on seeded personas
-  (`Alice`, `Bob`, `Charlie`, `Dave`, `Eve`, `Ferdie`).
+- The local tester CLI uses seeded personas (`Alice` through `Ferdie`) for
+  deterministic local testing.
 
 ### Target model (future goal)
 
 - A signed transacting account should be equivalent to an admitted member
-  account in the private network model.
+  account in the private-network model.
 - New member accounts should only become usable after approval by existing
   members.
-- Recurring fee policy (for example annual rhythm) should be protocol-enforced
-  rather than only a social convention.
+- Recurring fee policy (for example annual rhythm) should be protocol-enforced,
+  not only social convention.
 
 ## How it works
 
+```text
+Member fees ──> Treasury <── approved proposals draw from here
+                    ^
+                    |
+Proposals: submit -> vote -> finalize -> execute (once)
 ```
-Member fees ──▸ Treasury ◂── approved proposals draw from here
-                   ▲
-                   │
- Proposals: submit → vote → tally → execute (once)
-```
 
-1. **Members** are admitted on-chain through peer voting. Only active members
-   can submit proposals and vote.
-2. **Treasury** collects fees and holds the community's funds. Its balance can
-   never go negative.
-3. **Proposals** let any active member request a spend. All members vote with
-   equal weight. An approved proposal triggers a one-time treasury
-   disbursement.
+1. Members are admitted on-chain through peer voting.
+2. Treasury holds community funds and enforces non-negative balance.
+3. Proposals let active members request spends from treasury.
 
-## Key concepts
+## Governance note (known limitation)
 
-| Term | Meaning |
-|---|---|
-| Member | An on-chain participant — a storage record, not a token |
-| Community Token | The single fungible asset used for fees and proposals |
-| Treasury | The community-owned pool of tokens |
-| Proposal | A formal spending request subject to member vote |
-| Vote | One member, one equal-weight signal (for or against) |
+Current voting thresholds are intentionally simple and need hardening:
+
+- Treasury proposals: approval is `yes > no` at finalize time (no quorum yet).
+- Membership proposals: approval is `>= 80%` of a submit-time active-member
+  snapshot (no quorum/turnout guard yet).
+- Suspension by peers: unanimity of all other active members.
+
+Future work should formalize quorum/turnout and more robust threshold policy.
 
 ## Domain model
 
-For a deeper look at the problem domain and requirements engineering, see
-[`docs/domain-model.md`](docs/domain-model.md) — includes a full Mermaid class
-diagram of the *Fachdomäne*.
+See [`docs/domain-model.md`](docs/domain-model.md) for relationships and lifecycle terms.
 
 ## Tester CLI (local member UX)
 
-The workspace now includes `gaia-tester-cli`, a human-focused local tester for
-manual member flows. It is intended for one person to run through:
-`submit -> vote -> tally -> execute` in one session.
+The workspace includes `gaia-tester-cli`, a human-focused local tester for
+manual governance flows.
 
-### What you can experiment with today
+### Command namespaces
 
-The command surface is intentionally small:
+- `personas` — seeded local identities (list/preview)
+- `memberships` — membership proposal governance
+- `proposals` — treasury spending proposal lifecycle
+- `treasury` — treasury deposit actions
+- `watch` — read-only state inspection
+- `local` — local node/metadata helper hints
 
-- `persona` — list and preview seeded local personas (`Alice`, `Bob`, `Charlie`, etc.)
-- `membership` — submit and vote member admission calls
-- `proposal` — submit/vote/tally/execute proposal calls (`vote` uses `yes|no`)
-- `treasury` — deposit fees into treasury
-- `watch` — inspect proposal state and treasury balance
-- `local` — local helper hints (`start`, `reset`, `refresh-metadata`)
-
-Notes for local testing:
-
-- `gaia-tester-cli` arguments are persona-based today; it is optimized for
-  deterministic local experiments, not arbitrary account management.
-- `local` commands are help-oriented utilities for running/resetting a dev
-  session and refreshing metadata.
-
-### Built-in CLI help
-
-The CLI already provides a help function at every level (top-level + each
-subcommand):
+### Built-in help
 
 ```bash
 cargo run -p gaia-tester-cli -- --help
-cargo run -p gaia-tester-cli -- help
-cargo run -p gaia-tester-cli -- membership --help
-cargo run -p gaia-tester-cli -- proposal --help
+cargo run -p gaia-tester-cli -- personas --help
+cargo run -p gaia-tester-cli -- memberships --help
+cargo run -p gaia-tester-cli -- proposals --help
 cargo run -p gaia-tester-cli -- treasury --help
 cargo run -p gaia-tester-cli -- watch --help
 cargo run -p gaia-tester-cli -- local --help
 ```
 
+### Watch list/detail UX
+
+Read-only list/detail surfaces:
+
+- `watch proposals [proposal_id]`
+- `watch memberships [proposal_id]`
+- `watch treasury`
+
+List defaults:
+
+- `--state active`
+- `--order newest`
+
+List options:
+
+- `--state`:
+  - proposals: `active|approved|rejected|executed|all`
+  - memberships: `active|approved|rejected|all`
+- `--order newest|oldest`
+- `--pager` (force pager)
+- `--no-pager` (disable pager)
+
+Pager behavior:
+
+- If stdout is a TTY, output goes through pager.
+- If stdout is not a TTY (pipe/redirection), raw output is printed.
+- Uses `$PAGER` when set; otherwise falls back to `less -FR`.
+
 ### Fast local tester mode
 
-For practical local manual testing, runtime voting period can be shortened with
-feature `fast-local`:
+For practical local testing, run the node with shortened voting periods:
 
 ```bash
 cargo run -p gaia-node --features gaia-runtime/fast-local -- --dev --tmp --rpc-external --unsafe-rpc-external
 ```
 
-- Default runtime behavior remains unchanged.
-- `fast-local` is opt-in and intended only for local tester sessions.
+- `proposals` voting period: `20` blocks in fast-local, `100_800` blocks otherwise.
+- `memberships` voting period: `20` blocks in fast-local, `100_800` blocks otherwise.
 
-### Getting started (broad local-testing overview)
+### Quick local flow
 
-1. Clone and enter repo:
-
-```bash
-git clone <your-gaia-repo-url>
-cd gaia
-```
-
-2. Build tester CLI:
+1. Build:
 
 ```bash
 cargo build -p gaia-tester-cli
 ```
 
-3. Start local node (fast local tester mode):
+2. Start local node:
 
 ```bash
 cargo run -p gaia-node --features gaia-runtime/fast-local -- --dev --tmp --rpc-external --unsafe-rpc-external
 ```
 
-The `--dev` preset endows seeded tester personas (`Alice` through `Ferdie`) so
-membership/proposal/treasury calls can pay fees immediately.
-
-4. In a second terminal, inspect the CLI surface first:
+3. In a second terminal:
 
 ```bash
-cargo run -p gaia-tester-cli -- --help
-cargo run -p gaia-tester-cli -- local --help
+cargo run -p gaia-tester-cli -- personas list
+cargo run -p gaia-tester-cli -- personas preview alice
 ```
 
-5. Confirm seeded local personas:
+4. Membership example:
 
 ```bash
-cargo run -p gaia-tester-cli -- persona list
+cargo run -p gaia-tester-cli -- memberships propose alice dave
+cargo run -p gaia-tester-cli -- watch memberships
+cargo run -p gaia-tester-cli -- memberships vote alice 1 yes
+cargo run -p gaia-tester-cli -- memberships vote bob 1 yes
+cargo run -p gaia-tester-cli -- memberships vote charlie 1 yes
 ```
 
-Expected first output:
-
-```text
-Available seeded personas:
-- Alice
-- Bob
-- Charlie
-- Dave
-- Eve
-- Ferdie
-```
-
-6. Preview a signer identity:
+5. Treasury proposal example:
 
 ```bash
-cargo run -p gaia-tester-cli -- persona preview alice
-```
-
-7. Run one membership + proposal flow to experiment end-to-end:
-
-```bash
-cargo run -p gaia-tester-cli -- membership propose alice dave
-cargo run -p gaia-tester-cli -- membership vote alice dave yes
-cargo run -p gaia-tester-cli -- membership vote bob dave yes
-cargo run -p gaia-tester-cli -- membership vote charlie dave yes
-cargo run -p gaia-tester-cli -- proposal submit alice "workshop" "fund-local-event" 10 240
-cargo run -p gaia-tester-cli -- proposal vote bob 1 yes
-cargo run -p gaia-tester-cli -- proposal vote dave 1 yes
-cargo run -p gaia-tester-cli -- watch proposal 1
-# wait until current chain block is greater than vote_end, then:
-cargo run -p gaia-tester-cli -- proposal tally alice 1
-cargo run -p gaia-tester-cli -- proposal execute alice 1
+cargo run -p gaia-tester-cli -- treasury deposit alice 1000
+cargo run -p gaia-tester-cli -- proposals submit alice "workshop" "fund-local-event" 10 240
+cargo run -p gaia-tester-cli -- proposals vote bob 1 yes
+cargo run -p gaia-tester-cli -- proposals vote charlie 1 yes
+cargo run -p gaia-tester-cli -- watch proposals 1
+# wait until current block > vote_end
+cargo run -p gaia-tester-cli -- proposals finalize alice 1
+cargo run -p gaia-tester-cli -- proposals execute alice 1
 cargo run -p gaia-tester-cli -- watch treasury
-```
-
-Use help at any point to discover or re-check parameters:
-
-```bash
-cargo run -p gaia-tester-cli -- membership --help
-cargo run -p gaia-tester-cli -- proposal --help
-cargo run -p gaia-tester-cli -- treasury --help
-cargo run -p gaia-tester-cli -- watch --help
-cargo run -p gaia-tester-cli -- local --help
 ```
 
 ### Metadata artifact refresh
 
-The tester CLI uses a committed metadata artifact: `tester-cli/artifacts/gaia.scale`.
+The tester CLI uses committed metadata: `tester-cli/artifacts/gaia.scale`.
 
-To refresh it after runtime changes:
-
-1. Run local node with WS on `ws://127.0.0.1:9944` and HTTP RPC on `http://127.0.0.1:9933`.
-2. Fetch and decode metadata directly into `tester-cli/artifacts/gaia.scale`:
+Refresh after runtime changes:
 
 ```bash
-curl -sS -H 'content-type: application/json' \
-  -d '{"id":1,"jsonrpc":"2.0","method":"state_getMetadata","params":[]}' \
-  http://127.0.0.1:9933 \
-  | sed -n 's/.*"result":"0x\([^"]*\)".*/\1/p' \
-  | xxd -r -p > tester-cli/artifacts/gaia.scale
+cargo run -p gaia-tester-cli --bin refresh_metadata -- ws://127.0.0.1:9944 tester-cli/artifacts/gaia.scale
 ```
 
-3. Rebuild `gaia-tester-cli`.
+Then rebuild:
+
+```bash
+cargo build -p gaia-tester-cli
+```
 
 ## Project structure
 
 | Directory | Purpose |
 |---|---|
-| `pallets/membership/` | Member registry — who is active |
-| `pallets/treasury/` | Community funds — deposits and disbursements |
-| `pallets/proposals/` | Proposal lifecycle — submit, vote, execute |
-| `runtime/` | Wires pallets into a Substrate runtime |
+| `pallets/membership/` | Member registry and membership proposal governance |
+| `pallets/treasury/` | Community funds: deposits and disbursements |
+| `pallets/proposals/` | Treasury proposal lifecycle |
+| `runtime/` | Runtime wiring and constants |
 | `node/` | Substrate node binary |
-| `tester-cli/` | Human-focused Subxt tester CLI for local member UX |
-| `docs/` | Architecture decisions and build status |
+| `tester-cli/` | Subxt-based local tester CLI |
+| `docs/` | ADRs and current-state documentation |
 
 ## Status
 
-> **All three pallets implemented and tested.** `membership`, `treasury`, and `proposals`
-> are fully implemented, runtime-wired, and covered by unit, integration, and runtime tests.
-> See [`docs/current-state.md`](docs/current-state.md) for the latest detailed status,
-> including current test counts.
+All three GAIA pallets are implemented and runtime-wired. See
+[`docs/current-state.md`](docs/current-state.md) for the detailed build and test state.
 
 ## For AI agents
 
 If you are an AI coding agent, read [`AGENTS.md`](AGENTS.md) before writing
-any code. It contains invariants, conventions, and constraints that govern all
-contributions to this repository.
+code. It defines invariants and contribution constraints.
 
-Codex sessions should also load [`.codex/instructions.md`](.codex/instructions.md)
-to mirror the same operating rules used by GitHub Copilot agent sessions.
