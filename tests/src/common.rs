@@ -1,8 +1,8 @@
 use frame_support::assert_ok;
 use frame_support::traits::{ConstU32, Get, OnInitialize};
 use gaia_runtime::{
-    AccountId, BalancesConfig, MembershipConfig, Proposals, Runtime, RuntimeGenesisConfig,
-    RuntimeOrigin, System,
+    AccountId, BalancesConfig, Membership, MembershipConfig, Proposals, Runtime,
+    RuntimeGenesisConfig, RuntimeOrigin, System,
 };
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{BoundedVec, BuildStorage};
@@ -122,13 +122,18 @@ pub fn advance_blocks(n: u32) {
     }
 }
 
-/// Advance past the voting window so proposals can be tallied.
+/// Advance past the treasury proposal voting window so proposals can be tallied.
 ///
 /// Derives the value from the runtime's `VotingPeriod` config, so tests
 /// stay in sync if the constant changes.
 pub fn advance_past_voting_period() {
-    let period =
-        <<Runtime as gaia_proposals::pallet::Config>::VotingPeriod as Get<u32>>::get();
+    let period = <<Runtime as gaia_proposals::pallet::Config>::VotingPeriod as Get<u32>>::get();
+    advance_blocks(period + 1);
+}
+
+/// Advance past the membership proposal voting window so proposals can be finalized.
+pub fn advance_past_membership_voting_period() {
+    let period = <<Runtime as gaia_membership::pallet::Config>::VotingPeriod as Get<u32>>::get();
     advance_blocks(period + 1);
 }
 
@@ -146,7 +151,7 @@ pub fn bounded_desc(
     BoundedVec::try_from(s.to_vec()).expect("description fits")
 }
 
-/// Submit a minimal proposal from Alice and return its id.
+/// Submit a minimal treasury spending proposal from Alice and return its id.
 pub fn submit_default_proposal() -> u32 {
     assert_ok!(Proposals::submit_proposal(
         RuntimeOrigin::signed(alice()),
@@ -156,4 +161,27 @@ pub fn submit_default_proposal() -> u32 {
         10
     ));
     gaia_proposals::pallet::ProposalCount::<Runtime>::get()
+}
+
+/// Submit a membership proposal and return its id.
+pub fn submit_membership_proposal(signer: AccountId, candidate: AccountId, name: &[u8]) -> u32 {
+    assert_ok!(Membership::propose_member(
+        RuntimeOrigin::signed(signer),
+        candidate,
+        bounded_name(name)
+    ));
+    gaia_membership::pallet::MembershipProposalCount::<Runtime>::get()
+}
+
+/// Admit a candidate via membership proposal approval in default 3-member genesis.
+pub fn admit_candidate(candidate: AccountId, name: &[u8]) -> u32 {
+    let proposal_id = submit_membership_proposal(alice(), candidate, name);
+    for voter in [alice(), bob(), charlie()] {
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(voter),
+            proposal_id,
+            true
+        ));
+    }
+    proposal_id
 }

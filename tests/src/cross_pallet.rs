@@ -111,26 +111,7 @@ fn suspension_during_voting_period() {
 fn newly_admitted_member_can_vote_on_proposals() {
     new_test_ext().execute_with(|| {
         // Admit dave
-        assert_ok!(Membership::propose_member(
-            RuntimeOrigin::signed(alice()),
-            dave(),
-            bounded_name(b"Dave")
-        ));
-        assert_ok!(Membership::vote_on_candidate(
-            RuntimeOrigin::signed(alice()),
-            dave(),
-            true
-        ));
-        assert_ok!(Membership::vote_on_candidate(
-            RuntimeOrigin::signed(bob()),
-            dave(),
-            true
-        ));
-        assert_ok!(Membership::vote_on_candidate(
-            RuntimeOrigin::signed(charlie()),
-            dave(),
-            true
-        ));
+        let _membership_id = admit_candidate(dave(), b"Dave");
 
         // Dave is now a member — can vote on a proposal
         let id = submit_default_proposal();
@@ -146,26 +127,7 @@ fn newly_admitted_member_can_vote_on_proposals() {
 fn newly_admitted_member_can_submit_proposal() {
     new_test_ext().execute_with(|| {
         // Admit dave
-        assert_ok!(Membership::propose_member(
-            RuntimeOrigin::signed(alice()),
-            dave(),
-            bounded_name(b"Dave")
-        ));
-        assert_ok!(Membership::vote_on_candidate(
-            RuntimeOrigin::signed(alice()),
-            dave(),
-            true
-        ));
-        assert_ok!(Membership::vote_on_candidate(
-            RuntimeOrigin::signed(bob()),
-            dave(),
-            true
-        ));
-        assert_ok!(Membership::vote_on_candidate(
-            RuntimeOrigin::signed(charlie()),
-            dave(),
-            true
-        ));
+        let _membership_id = admit_candidate(dave(), b"Dave");
 
         // Dave submits a proposal
         assert_ok!(Proposals::submit_proposal(
@@ -329,18 +291,7 @@ fn newly_admitted_member_vote_counts_after_proposer_suspends() {
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
 
         // Admit Dave
-        assert_ok!(Membership::propose_member(
-            RuntimeOrigin::signed(alice()),
-            dave(),
-            bounded_name(b"Dave")
-        ));
-        for voter in [alice(), bob(), charlie()] {
-            assert_ok!(Membership::vote_on_candidate(
-                RuntimeOrigin::signed(voter),
-                dave(),
-                true
-            ));
-        }
+        let _membership_id = admit_candidate(dave(), b"Dave");
 
         let id = submit_default_proposal(); // Alice submits
 
