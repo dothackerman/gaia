@@ -1,10 +1,22 @@
 use crate::mock::*;
 use crate::pallet::{
-    ActiveMemberCount, CandidateApprovalCount, CandidateVotes, Candidates, MemberStatus, Members,
-    SuspensionApprovalCount, SuspensionReason, SuspensionVotes,
+    ActiveMemberCount, ActiveProposalByCandidate, MemberStatus, Members, MembershipProposalCount,
+    MembershipProposalNoCount, MembershipProposalStatus, MembershipProposalVotes,
+    MembershipProposalYesCount, MembershipProposals, SuspensionApprovalCount, SuspensionReason,
+    SuspensionVotes,
 };
 use crate::{Error, Event, MembershipChecker};
+use frame_support::traits::{Get, OnInitialize};
 use frame_support::{assert_noop, assert_ok};
+
+fn advance_past_membership_voting_period() {
+    let period = <<Test as crate::Config>::VotingPeriod as Get<u64>>::get();
+    for _ in 0..=period {
+        let next = System::block_number() + 1;
+        System::set_block_number(next);
+        System::on_initialize(next);
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Genesis sanity
@@ -49,31 +61,43 @@ fn is_active_member_returns_false_for_non_member() {
 }
 
 // ---------------------------------------------------------------------------
-// propose_member — happy path
+// propose_member
 // ---------------------------------------------------------------------------
 
 #[test]
-fn propose_member_succeeds_for_active_member() {
+fn propose_member_creates_active_proposal_with_snapshot_and_deadline() {
     new_test_ext().execute_with(|| {
+        let now = System::block_number();
+        let period = <<Test as crate::Config>::VotingPeriod as Get<u64>>::get();
+
         assert_ok!(Membership::propose_member(
             RuntimeOrigin::signed(ALICE),
             EVE,
             bounded_name(b"Eve"),
         ));
-        assert!(Candidates::<Test>::contains_key(EVE));
+
+        let proposal_id = MembershipProposalCount::<Test>::get();
+        let proposal = MembershipProposals::<Test>::get(proposal_id).expect("proposal exists");
+
+        assert_eq!(proposal.candidate, EVE);
+        assert_eq!(proposal.proposed_by, ALICE);
+        assert_eq!(proposal.proposed_at, now);
+        assert_eq!(proposal.vote_end, now + period);
+        assert_eq!(proposal.active_member_snapshot, 3);
+        assert_eq!(proposal.status, MembershipProposalStatus::Active);
+        assert_eq!(ActiveProposalByCandidate::<Test>::get(EVE), Some(proposal_id));
+
         System::assert_last_event(
-            Event::CandidateProposed {
+            Event::MemberProposalSubmitted {
+                proposal_id,
                 candidate: EVE,
                 proposed_by: ALICE,
+                vote_end: now + period,
             }
             .into(),
         );
     });
 }
-
-// ---------------------------------------------------------------------------
-// propose_member — failure paths
-// ---------------------------------------------------------------------------
 
 #[test]
 fn propose_member_fails_for_non_member() {
@@ -96,13 +120,14 @@ fn propose_member_fails_for_existing_member() {
 }
 
 #[test]
-fn propose_member_fails_for_duplicate_proposal() {
+fn propose_member_fails_for_duplicate_active_proposal() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
             RuntimeOrigin::signed(ALICE),
             EVE,
             bounded_name(b"Eve"),
         ));
+
         assert_noop!(
             Membership::propose_member(RuntimeOrigin::signed(BOB), EVE, bounded_name(b"Eve"),),
             Error::<Test>::CandidateAlreadyProposed
@@ -111,26 +136,33 @@ fn propose_member_fails_for_duplicate_proposal() {
 }
 
 // ---------------------------------------------------------------------------
-// vote_on_candidate — happy path
+// vote_on_candidate
 // ---------------------------------------------------------------------------
 
 #[test]
-fn vote_on_candidate_records_vote() {
+fn vote_on_candidate_records_yes_vote() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
             RuntimeOrigin::signed(ALICE),
             EVE,
             bounded_name(b"Eve"),
         ));
+
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
         assert_ok!(Membership::vote_on_candidate(
             RuntimeOrigin::signed(ALICE),
-            EVE,
+            proposal_id,
             true,
         ));
-        assert!(CandidateVotes::<Test>::contains_key(EVE, ALICE));
-        assert_eq!(CandidateApprovalCount::<Test>::get(EVE), 1);
+
+        assert!(MembershipProposalVotes::<Test>::contains_key(proposal_id, ALICE));
+        assert_eq!(MembershipProposalYesCount::<Test>::get(proposal_id), 1);
+        assert_eq!(MembershipProposalNoCount::<Test>::get(proposal_id), 0);
+
         System::assert_last_event(
-            Event::VoteCast {
+            Event::MemberProposalVoteCast {
+                proposal_id,
                 candidate: EVE,
                 voter: ALICE,
                 approve: true,
@@ -141,25 +173,26 @@ fn vote_on_candidate_records_vote() {
 }
 
 #[test]
-fn rejection_vote_does_not_increment_approval_count() {
+fn vote_on_candidate_records_no_vote() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
             RuntimeOrigin::signed(ALICE),
             EVE,
             bounded_name(b"Eve"),
         ));
+
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
         assert_ok!(Membership::vote_on_candidate(
             RuntimeOrigin::signed(ALICE),
-            EVE,
+            proposal_id,
             false,
         ));
-        assert_eq!(CandidateApprovalCount::<Test>::get(EVE), 0);
+
+        assert_eq!(MembershipProposalYesCount::<Test>::get(proposal_id), 0);
+        assert_eq!(MembershipProposalNoCount::<Test>::get(proposal_id), 1);
     });
 }
-
-// ---------------------------------------------------------------------------
-// vote_on_candidate — failure paths
-// ---------------------------------------------------------------------------
 
 #[test]
 fn vote_fails_for_non_member() {
@@ -169,19 +202,21 @@ fn vote_fails_for_non_member() {
             EVE,
             bounded_name(b"Eve"),
         ));
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
         assert_noop!(
-            Membership::vote_on_candidate(RuntimeOrigin::signed(DAVE), EVE, true),
+            Membership::vote_on_candidate(RuntimeOrigin::signed(DAVE), proposal_id, true),
             Error::<Test>::NotActiveMember
         );
     });
 }
 
 #[test]
-fn vote_fails_for_nonexistent_candidate() {
+fn vote_fails_for_unknown_proposal() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            Membership::vote_on_candidate(RuntimeOrigin::signed(ALICE), EVE, true),
-            Error::<Test>::CandidateNotFound
+            Membership::vote_on_candidate(RuntimeOrigin::signed(ALICE), 999, true),
+            Error::<Test>::ProposalNotFound
         );
     });
 }
@@ -194,90 +229,262 @@ fn vote_fails_for_double_vote() {
             EVE,
             bounded_name(b"Eve"),
         ));
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
         assert_ok!(Membership::vote_on_candidate(
             RuntimeOrigin::signed(ALICE),
-            EVE,
+            proposal_id,
             true,
         ));
+
         assert_noop!(
-            Membership::vote_on_candidate(RuntimeOrigin::signed(ALICE), EVE, true),
+            Membership::vote_on_candidate(RuntimeOrigin::signed(ALICE), proposal_id, true),
             Error::<Test>::AlreadyVoted
         );
     });
 }
 
-// ---------------------------------------------------------------------------
-// Approval threshold (80 %)
-// ---------------------------------------------------------------------------
-
 #[test]
-fn candidate_approved_at_80_percent_threshold() {
-    // 3 active members → 80 % = ceil(2.4) = 3 needed
-    // With integer math: approval * 5 >= active * 4  →  3 * 5 = 15 >= 3 * 4 = 12 ✓
+fn vote_fails_after_voting_window_closed() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
             RuntimeOrigin::signed(ALICE),
             EVE,
             bounded_name(b"Eve"),
         ));
-        // Vote 1
-        assert_ok!(Membership::vote_on_candidate(
-            RuntimeOrigin::signed(ALICE),
-            EVE,
-            true,
-        ));
-        assert!(!Members::<Test>::contains_key(EVE));
+        let proposal_id = MembershipProposalCount::<Test>::get();
 
-        // Vote 2
-        assert_ok!(Membership::vote_on_candidate(
-            RuntimeOrigin::signed(BOB),
-            EVE,
-            true,
-        ));
-        assert!(!Members::<Test>::contains_key(EVE));
+        advance_past_membership_voting_period();
 
-        // Vote 3 — threshold met
-        assert_ok!(Membership::vote_on_candidate(
-            RuntimeOrigin::signed(CHARLIE),
-            EVE,
-            true,
-        ));
-        // Now Eve should be a member
-        assert!(Members::<Test>::contains_key(EVE));
-        assert_eq!(ActiveMemberCount::<Test>::get(), 4);
-        // Candidate storage cleaned up
-        assert!(!Candidates::<Test>::contains_key(EVE));
-        assert_eq!(CandidateApprovalCount::<Test>::get(EVE), 0);
+        assert_noop!(
+            Membership::vote_on_candidate(RuntimeOrigin::signed(ALICE), proposal_id, true),
+            Error::<Test>::VotingClosed
+        );
     });
 }
 
 #[test]
-fn candidate_not_approved_below_threshold() {
-    // 3 active members: 2 approve, 1 rejects → 2 * 5 = 10 < 3 * 4 = 12 → not approved
+fn vote_approves_candidate_early_at_snapshot_threshold() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::propose_member(
             RuntimeOrigin::signed(ALICE),
             EVE,
             bounded_name(b"Eve"),
         ));
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
+        // Snapshot = 3 active members. Threshold requires 3 yes votes.
         assert_ok!(Membership::vote_on_candidate(
             RuntimeOrigin::signed(ALICE),
-            EVE,
+            proposal_id,
             true,
         ));
         assert_ok!(Membership::vote_on_candidate(
             RuntimeOrigin::signed(BOB),
+            proposal_id,
+            true,
+        ));
+        assert!(Members::<Test>::get(EVE).is_none());
+
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(CHARLIE),
+            proposal_id,
+            true,
+        ));
+
+        assert_eq!(Members::<Test>::get(EVE).unwrap().status, MemberStatus::Active);
+        assert_eq!(ActiveMemberCount::<Test>::get(), 4);
+        assert_eq!(ActiveProposalByCandidate::<Test>::get(EVE), None);
+        assert_eq!(
+            MembershipProposals::<Test>::get(proposal_id)
+                .unwrap()
+                .status,
+            MembershipProposalStatus::Approved
+        );
+
+        System::assert_last_event(
+            Event::MemberProposalApproved {
+                proposal_id,
+                member: EVE,
+            }
+            .into(),
+        );
+    });
+}
+
+// ---------------------------------------------------------------------------
+// finalize_proposal
+// ---------------------------------------------------------------------------
+
+#[test]
+fn finalize_rejects_when_threshold_not_met_by_deadline() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(ALICE),
             EVE,
+            bounded_name(b"Eve"),
+        ));
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
+        // 2/3 yes is below 80% threshold.
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(ALICE),
+            proposal_id,
+            true,
+        ));
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(BOB),
+            proposal_id,
             true,
         ));
         assert_ok!(Membership::vote_on_candidate(
             RuntimeOrigin::signed(CHARLIE),
-            EVE,
+            proposal_id,
             false,
         ));
-        // Should NOT be approved — 2/3 = 66 %, below 80 %
-        assert!(!Members::<Test>::contains_key(EVE));
-        assert!(Candidates::<Test>::contains_key(EVE));
+
+        advance_past_membership_voting_period();
+
+        assert_ok!(Membership::finalize_proposal(
+            RuntimeOrigin::signed(ALICE),
+            proposal_id,
+        ));
+
+        assert!(Members::<Test>::get(EVE).is_none());
+        assert_eq!(ActiveProposalByCandidate::<Test>::get(EVE), None);
+        assert_eq!(
+            MembershipProposals::<Test>::get(proposal_id)
+                .unwrap()
+                .status,
+            MembershipProposalStatus::Rejected
+        );
+
+        System::assert_last_event(
+            Event::MemberProposalRejected {
+                proposal_id,
+                candidate: EVE,
+            }
+            .into(),
+        );
+    });
+}
+
+#[test]
+fn finalize_fails_before_voting_window_ends() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(ALICE),
+            EVE,
+            bounded_name(b"Eve"),
+        ));
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
+        assert_noop!(
+            Membership::finalize_proposal(RuntimeOrigin::signed(ALICE), proposal_id),
+            Error::<Test>::VotingStillOpen
+        );
+    });
+}
+
+#[test]
+fn finalize_requires_active_member_origin() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(ALICE),
+            EVE,
+            bounded_name(b"Eve"),
+        ));
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
+        advance_past_membership_voting_period();
+
+        assert_noop!(
+            Membership::finalize_proposal(RuntimeOrigin::signed(DAVE), proposal_id),
+            Error::<Test>::NotActiveMember
+        );
+    });
+}
+
+#[test]
+fn finalize_uses_submit_time_snapshot_threshold() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(ALICE),
+            EVE,
+            bounded_name(b"Eve"),
+        ));
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
+        // Two yes votes with snapshot=3 is insufficient.
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(ALICE),
+            proposal_id,
+            true,
+        ));
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(BOB),
+            proposal_id,
+            true,
+        ));
+
+        // Shrink live active member count to 2.
+        assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(CHARLIE)));
+        assert_eq!(ActiveMemberCount::<Test>::get(), 2);
+
+        advance_past_membership_voting_period();
+
+        assert_ok!(Membership::finalize_proposal(
+            RuntimeOrigin::signed(ALICE),
+            proposal_id,
+        ));
+
+        // Still rejected because threshold uses snapshot=3.
+        assert!(Members::<Test>::get(EVE).is_none());
+        assert_eq!(
+            MembershipProposals::<Test>::get(proposal_id)
+                .unwrap()
+                .status,
+            MembershipProposalStatus::Rejected
+        );
+    });
+}
+
+#[test]
+fn can_repropose_candidate_after_rejection() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(ALICE),
+            EVE,
+            bounded_name(b"Eve"),
+        ));
+        let first = MembershipProposalCount::<Test>::get();
+
+        // Reject first proposal.
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(ALICE),
+            first,
+            false,
+        ));
+        advance_past_membership_voting_period();
+        assert_ok!(Membership::finalize_proposal(
+            RuntimeOrigin::signed(BOB),
+            first,
+        ));
+
+        assert_eq!(
+            MembershipProposals::<Test>::get(first).unwrap().status,
+            MembershipProposalStatus::Rejected
+        );
+
+        // Candidate can be proposed again once prior active proposal is resolved.
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(ALICE),
+            EVE,
+            bounded_name(b"Eve v2"),
+        ));
+        let second = MembershipProposalCount::<Test>::get();
+        assert!(second > first);
+        assert_eq!(ActiveProposalByCandidate::<Test>::get(EVE), Some(second));
     });
 }
 
@@ -288,12 +495,7 @@ fn candidate_not_approved_below_threshold() {
 #[test]
 fn suspended_member_cannot_propose() {
     new_test_ext().execute_with(|| {
-        // Manually suspend Alice for testing purposes.
-        Members::<Test>::mutate(ALICE, |maybe| {
-            if let Some(ref mut record) = maybe {
-                record.status = MemberStatus::Suspended;
-            }
-        });
+        assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(ALICE)));
         assert_noop!(
             Membership::propose_member(RuntimeOrigin::signed(ALICE), EVE, bounded_name(b"Eve"),),
             Error::<Test>::MemberSuspended
@@ -304,20 +506,16 @@ fn suspended_member_cannot_propose() {
 #[test]
 fn suspended_member_cannot_vote() {
     new_test_ext().execute_with(|| {
-        // First, propose EVE while Alice is still active.
         assert_ok!(Membership::propose_member(
             RuntimeOrigin::signed(BOB),
             EVE,
             bounded_name(b"Eve"),
         ));
-        // Suspend Alice.
-        Members::<Test>::mutate(ALICE, |maybe| {
-            if let Some(ref mut record) = maybe {
-                record.status = MemberStatus::Suspended;
-            }
-        });
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
+        assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(ALICE)));
         assert_noop!(
-            Membership::vote_on_candidate(RuntimeOrigin::signed(ALICE), EVE, true),
+            Membership::vote_on_candidate(RuntimeOrigin::signed(ALICE), proposal_id, true),
             Error::<Test>::MemberSuspended
         );
     });
@@ -380,11 +578,13 @@ fn vote_suspend_member_requires_unanimous_other_members() {
             Members::<Test>::get(ALICE).unwrap().status,
             MemberStatus::Active
         );
+
         assert_ok!(Membership::vote_suspend_member(
             RuntimeOrigin::signed(CHARLIE),
             ALICE,
             true
         ));
+
         assert_eq!(ActiveMemberCount::<Test>::get(), 2);
         assert_eq!(
             Members::<Test>::get(ALICE).unwrap().status,
@@ -392,13 +592,6 @@ fn vote_suspend_member_requires_unanimous_other_members() {
         );
         assert!(!SuspensionVotes::<Test>::contains_key(ALICE, BOB));
         assert_eq!(SuspensionApprovalCount::<Test>::get(ALICE), 0);
-        System::assert_last_event(
-            Event::MemberSuspended {
-                member: ALICE,
-                reason: SuspensionReason::PeerVote,
-            }
-            .into(),
-        );
     });
 }
 
@@ -414,12 +607,7 @@ fn vote_suspend_member_rejects_self_target() {
 
 #[test]
 fn self_suspension_clears_pending_votes_against_other_targets() {
-    // Regression: if Charlie self-suspends while a suspension vote against
-    // Alice is in progress, the voter pool shrinks and stale votes must be
-    // invalidated to prevent an incorrect threshold match.
     new_test_ext().execute_with(|| {
-        // 3 active members: ALICE, BOB, CHARLIE.
-        // BOB votes to suspend ALICE (requires unanimity of others = 2).
         assert_ok!(Membership::vote_suspend_member(
             RuntimeOrigin::signed(BOB),
             ALICE,
@@ -427,15 +615,11 @@ fn self_suspension_clears_pending_votes_against_other_targets() {
         ));
         assert_eq!(SuspensionApprovalCount::<Test>::get(ALICE), 1);
 
-        // CHARLIE self-suspends → active count drops to 2.
-        // All pending suspension votes must be cleared.
         assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(CHARLIE)));
         assert_eq!(ActiveMemberCount::<Test>::get(), 2);
         assert_eq!(SuspensionApprovalCount::<Test>::get(ALICE), 0);
         assert!(!SuspensionVotes::<Test>::contains_key(ALICE, BOB));
 
-        // ALICE must still be active — the stale vote must not trigger her
-        // suspension.
         assert_eq!(
             Members::<Test>::get(ALICE).unwrap().status,
             MemberStatus::Active

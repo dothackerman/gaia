@@ -1,6 +1,7 @@
 use crate as gaia_membership;
 use crate::pallet::MAX_NAME_LEN;
 use frame_support::derive_impl;
+use frame_support::traits::ConstU64;
 use sp_runtime::{BoundedVec, BuildStorage};
 
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -36,6 +37,7 @@ impl frame_system::Config for Test {
 
 impl gaia_membership::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type VotingPeriod = ConstU64<10>;
 }
 
 /// Genesis accounts used across all tests.
