@@ -363,7 +363,14 @@ fn threshold_boundary_with_five_members() {
                 .status,
             MembershipProposalStatus::Approved
         );
-        let eve_proposal = admit_candidate(eve(), b"Eve");
+        let eve_proposal = submit_membership_proposal(alice(), eve(), b"Eve");
+        for voter in [alice(), bob(), charlie(), dave()] {
+            assert_ok!(Membership::vote_on_candidate(
+                RuntimeOrigin::signed(voter),
+                eve_proposal,
+                true
+            ));
+        }
         assert_eq!(
             MembershipProposals::<Runtime>::get(eve_proposal)
                 .unwrap()
