@@ -554,3 +554,82 @@ fn execute_propagates_treasury_error() {
         assert_eq!(proposal.status, ProposalStatus::Approved);
     });
 }
+
+#[test]
+fn execute_proposal_fails_before_delay_expires() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Proposals::set_execution_delay(governance_origin(), 10));
+        let id = submit_default(ALICE);
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(ALICE),
+            id,
+            true
+        ));
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(BOB),
+            id,
+            true
+        ));
+        advance_past_voting();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(ALICE), id));
+
+        assert_noop!(
+            Proposals::execute_proposal(RuntimeOrigin::signed(ALICE), id),
+            Error::<Test>::ExecutionTooEarly
+        );
+    });
+}
+
+#[test]
+fn execute_proposal_succeeds_after_delay_expires() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Proposals::set_execution_delay(governance_origin(), 10));
+        let id = submit_default(ALICE);
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(ALICE),
+            id,
+            true
+        ));
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(BOB),
+            id,
+            true
+        ));
+        advance_past_voting();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(ALICE), id));
+
+        let approved_at = ProposalStorage::<Test>::get(id).unwrap().approved_at.unwrap();
+        System::set_block_number(approved_at + 10);
+        assert_ok!(Proposals::execute_proposal(RuntimeOrigin::signed(ALICE), id));
+    });
+}
+
+#[test]
+fn execute_proposal_fails_when_approved_at_missing() {
+    new_test_ext().execute_with(|| {
+        let id = submit_default(ALICE);
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(ALICE),
+            id,
+            true
+        ));
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(BOB),
+            id,
+            true
+        ));
+        advance_past_voting();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(ALICE), id));
+
+        ProposalStorage::<Test>::mutate(id, |proposal| {
+            if let Some(record) = proposal {
+                record.approved_at = None;
+            }
+        });
+
+        assert_noop!(
+            Proposals::execute_proposal(RuntimeOrigin::signed(ALICE), id),
+            Error::<Test>::ProposalNotYetApproved
+        );
+    });
+}

@@ -315,6 +315,62 @@ fn execute_active_proposal_fails() {
     });
 }
 
+#[test]
+fn execute_proposal_respects_configured_execution_delay() {
+    new_test_ext().execute_with(|| {
+        // Proposal A: set execution delay to 3 blocks via governance action.
+        assert_ok!(Proposals::submit_proposal(
+            RuntimeOrigin::signed(alice()),
+            bounded_title(b"Set delay"),
+            bounded_desc(b"Govern delay"),
+            gaia_proposals::pallet::ProposalClass::Governance,
+            gaia_proposals::pallet::GovernanceAction::SetExecutionDelay { blocks: 3 }
+        ));
+        let set_delay_id = gaia_proposals::pallet::ProposalCount::<Runtime>::get();
+
+        for voter in [alice(), bob()] {
+            assert_ok!(Proposals::vote_on_proposal(
+                RuntimeOrigin::signed(voter),
+                set_delay_id,
+                true
+            ));
+        }
+        advance_past_voting_period();
+        assert_ok!(Proposals::tally_proposal(
+            RuntimeOrigin::signed(alice()),
+            set_delay_id
+        ));
+        assert_ok!(Proposals::execute_proposal(
+            RuntimeOrigin::signed(alice()),
+            set_delay_id
+        ));
+        assert_eq!(gaia_proposals::ExecutionDelay::<Runtime>::get(), 3);
+
+        // Proposal B: standard disbursement should now respect the delay.
+        assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
+        let payout_id = submit_default_proposal();
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(alice()),
+            payout_id,
+            true
+        ));
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(bob()),
+            payout_id,
+            true
+        ));
+        advance_past_voting_period();
+        assert_ok!(Proposals::tally_proposal(
+            RuntimeOrigin::signed(alice()),
+            payout_id
+        ));
+        assert_noop!(
+            Proposals::execute_proposal(RuntimeOrigin::signed(alice()), payout_id),
+            gaia_proposals::Error::<Runtime>::ExecutionTooEarly
+        );
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Edge cases: concurrent proposals
 // ---------------------------------------------------------------------------
