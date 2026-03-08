@@ -10,6 +10,7 @@ use crate::pallet::{
     ProposalVotes,
     ProposalVotingPeriod,
     ProposalYesCount,
+    PendingRuntimeCode,
     // Aliased to avoid shadowing the pallet type alias `Proposals` from mock.
     Proposals as ProposalStorage,
     GovernanceAction,
@@ -67,6 +68,17 @@ fn submit_with_class(origin: u64, class: ProposalClass) -> u32 {
         bounded_desc(b"parameter update"),
         class,
         action,
+    ));
+    crate::pallet::ProposalCount::<Test>::get()
+}
+
+fn submit_upgrade_proposal(origin: u64, code_hash: [u8; 32]) -> u32 {
+    assert_ok!(Proposals::submit_proposal(
+        RuntimeOrigin::signed(origin),
+        bounded_title(b"Upgrade runtime"),
+        bounded_desc(b"Upgrade runtime blob"),
+        ProposalClass::Constitutional,
+        GovernanceAction::UpgradeRuntime { code_hash },
     ));
     crate::pallet::ProposalCount::<Test>::get()
 }
@@ -747,5 +759,123 @@ fn execute_proposal_fails_when_approved_at_missing() {
             Proposals::execute_proposal(RuntimeOrigin::signed(ALICE), id),
             Error::<Test>::ProposalNotYetApproved
         );
+    });
+}
+
+#[test]
+fn upload_runtime_code_stores_blob_and_emits_hash() {
+    new_test_ext().execute_with(|| {
+        let code = vec![1u8, 2, 3, 4];
+        let hash = sp_io::hashing::blake2_256(&code);
+        assert_ok!(Proposals::upload_runtime_code(
+            RuntimeOrigin::signed(ALICE),
+            code
+        ));
+        assert!(PendingRuntimeCode::<Test>::get().is_some());
+        System::assert_last_event(
+            Event::RuntimeCodeUploaded {
+                uploader: ALICE,
+                code_hash: hash,
+            }
+            .into(),
+        );
+    });
+}
+
+#[test]
+fn upload_runtime_code_rejects_non_member() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Proposals::upload_runtime_code(RuntimeOrigin::signed(DAVE), vec![1u8, 2, 3]),
+            Error::<Test>::NotActiveMember
+        );
+    });
+}
+
+#[test]
+fn execute_runtime_upgrade_fails_without_pending_code() {
+    new_test_ext().execute_with(|| {
+        let code_hash = [7u8; 32];
+        let id = submit_upgrade_proposal(ALICE, code_hash);
+        for voter in [ALICE, BOB, CHARLIE] {
+            assert_ok!(Proposals::vote_on_proposal(
+                RuntimeOrigin::signed(voter),
+                id,
+                true
+            ));
+        }
+        advance_past_voting();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(ALICE), id));
+        assert_noop!(
+            Proposals::execute_proposal(RuntimeOrigin::signed(ALICE), id),
+            Error::<Test>::NoPendingRuntimeCode
+        );
+    });
+}
+
+#[test]
+fn execute_runtime_upgrade_fails_with_wrong_hash() {
+    new_test_ext().execute_with(|| {
+        let code = vec![1u8, 2, 3, 4];
+        assert_ok!(Proposals::upload_runtime_code(
+            RuntimeOrigin::signed(ALICE),
+            code
+        ));
+        let wrong_hash = [9u8; 32];
+        let id = submit_upgrade_proposal(ALICE, wrong_hash);
+        for voter in [ALICE, BOB, CHARLIE] {
+            assert_ok!(Proposals::vote_on_proposal(
+                RuntimeOrigin::signed(voter),
+                id,
+                true
+            ));
+        }
+        advance_past_voting();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(ALICE), id));
+        assert_noop!(
+            Proposals::execute_proposal(RuntimeOrigin::signed(ALICE), id),
+            Error::<Test>::RuntimeCodeHashMismatch
+        );
+    });
+}
+
+#[test]
+fn execute_runtime_upgrade_requires_constitutional_class() {
+    new_test_ext().execute_with(|| {
+        let code_hash = [1u8; 32];
+        assert_noop!(
+            Proposals::submit_proposal(
+                RuntimeOrigin::signed(ALICE),
+                bounded_title(b"Bad class"),
+                bounded_desc(b"Invalid class"),
+                ProposalClass::Governance,
+                GovernanceAction::UpgradeRuntime { code_hash },
+            ),
+            Error::<Test>::ProposalClassMismatch
+        );
+    });
+}
+
+#[test]
+fn execute_runtime_upgrade_clears_pending_code_on_success() {
+    new_test_ext().execute_with(|| {
+        let code = vec![1u8, 2, 3, 4];
+        let code_hash = sp_io::hashing::blake2_256(&code);
+        assert_ok!(Proposals::upload_runtime_code(
+            RuntimeOrigin::signed(ALICE),
+            code
+        ));
+        let id = submit_upgrade_proposal(ALICE, code_hash);
+        for voter in [ALICE, BOB, CHARLIE] {
+            assert_ok!(Proposals::vote_on_proposal(
+                RuntimeOrigin::signed(voter),
+                id,
+                true
+            ));
+        }
+        advance_past_voting();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(ALICE), id));
+        assert_ok!(Proposals::execute_proposal(RuntimeOrigin::signed(ALICE), id));
+        assert!(PendingRuntimeCode::<Test>::get().is_none());
     });
 }

@@ -1,6 +1,6 @@
 # Current build state
 
-Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
+Last updated: 2026-03-08 (Waves 1–4 governance milestone integrated).
 
 ## Node (`node/`)
 
@@ -10,7 +10,7 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
 
 - Status: **GAIA pallets wired**
 - Pallets wired: `template`, `membership`, `treasury`, `proposals`
-- Runtime `spec_version`: **102** (Wave 1 storage migration backfill hardening)
+- Runtime `spec_version`: **104** (Wave 4 runtime-upgrade governance)
 - Development preset endows tester personas (`Alice`, `Bob`, `Charlie`, `Dave`, `Eve`, `Ferdie`)
 - Governance parameter model:
   - proposal + membership voting periods now read from on-chain storage
@@ -37,9 +37,9 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
   - `finalize_proposal(proposal_id)`
   - `suspend_self()`
   - `vote_suspend_member(target, approve)`
-  - `set_membership_voting_period(blocks)` (root placeholder)
-  - `set_membership_approval_threshold(numerator, denominator)` (root placeholder)
-  - `set_suspension_threshold(numerator, denominator)` (root placeholder)
+  - `set_membership_voting_period(blocks)` (governance-origin gated)
+  - `set_membership_approval_threshold(numerator, denominator)` (governance-origin gated)
+  - `set_suspension_threshold(numerator, denominator)` (governance-origin gated)
 - Behavior:
   - One active proposal per candidate
   - Approval threshold formula is storage-backed: `yes * d >= snapshot * n` (genesis default `4/5`)
@@ -71,32 +71,35 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
   - `StandardApprovalNumerator`, `StandardApprovalDenominator`
   - `GovernanceApprovalNumerator`, `GovernanceApprovalDenominator`
   - `ConstitutionalApprovalNumerator`, `ConstitutionalApprovalDenominator`
+  - `PendingRuntimeCode`
 - Dispatchables:
-  - `submit_proposal`, `vote_on_proposal`, `tally_proposal`, `execute_proposal`
-  - `set_proposal_voting_period(blocks)` (root placeholder)
-  - `set_execution_delay(blocks)` (root placeholder)
-  - `set_standard_approval_threshold(numerator, denominator)` (root placeholder)
-  - `set_governance_approval_threshold(numerator, denominator)` (root placeholder)
-  - `set_constitutional_approval_threshold(numerator, denominator)` (root placeholder)
+  - `submit_proposal(class, action)`, `vote_on_proposal`, `tally_proposal`, `execute_proposal`
+  - `set_proposal_voting_period(blocks)` (governance-origin gated)
+  - `set_execution_delay(blocks)` (governance-origin gated)
+  - `set_standard_approval_threshold(numerator, denominator)` (governance-origin gated)
+  - `set_governance_approval_threshold(numerator, denominator)` (governance-origin gated)
+  - `set_constitutional_approval_threshold(numerator, denominator)` (governance-origin gated)
+  - `upload_runtime_code(code)`
 - Lifecycle: `Active -> Approved/Rejected -> Executed`
 - Voting semantics:
   - `ProposalVotingPeriod` is active in submit/vote window logic (`vote_end` derives from storage)
-  - tallying remains `yes > no` in Wave 1
-  - `ExecutionDelay` and class threshold parameters are stored and settable in Wave 1, with enforcement deferred to later waves
+  - `tally_proposal` routes approval threshold by class (`Standard`, `Governance`, `Constitutional`)
+  - `ExecutionDelay` is enforced before execution using `approved_at`
+  - `UpgradeRuntime` constitutional actions execute `frame_system::set_code` after code-hash verification
 - Invariants enforced:
   - I-2: active-member check on every vote
   - I-3: single execution guard
-- Tests: 23 unit tests passing
+- Tests: 37 unit tests passing
 
 ## Integration tests (`tests/`)
 
 - Status: **comprehensive** (`gaia-integration-tests`)
 - Module counts:
   - `membership.rs`: 20 tests
-  - `proposals.rs`: 19 tests
+  - `proposals.rs`: 24 tests
   - `treasury.rs`: 9 tests
   - `cross_pallet.rs`: 10 tests
-- Total integration tests: 58
+- Total integration tests: 61
 
 ## Tester CLI (`tester-cli/`)
 
@@ -127,16 +130,18 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
 
 ## Governance hardening status
 
-- Implemented thresholds are intentionally simple:
-  - treasury proposals: currently tallied as `yes > no` in Wave 1
-  - proposal voting period is storage-backed and active at submission time
-  - membership proposals: storage-backed default snapshot threshold `4/5` (80%)
-  - suspension: storage-backed default `1/1` (unanimity of all other active members)
-  - governance/constitutional proposal thresholds and execution delay are stored with defaults (`4/5`, `9/10`, `0`) but not enforced yet
-- Setter authority is temporarily `EnsureRoot` in Wave 1 and planned to move to governance origin in Wave 2.
-- Runtime-upgrade migrations now backfill missing governance parameter storage keys for
-  proposals + membership to preserve safe defaults on in-place upgrades.
-- This is flagged for future hardening work (quorum/turnout policy and threshold maturity).
+- Wave 2 complete:
+  - typed `GovernanceAction` proposal payload
+  - class-action validation at submission
+  - governance-origin setter authority (`ga/govn0` sovereign account)
+- Wave 3 complete:
+  - execution delay enforced (`ExecutionDelay`, `approved_at`, `ExecutionTooEarly`)
+  - class-based tally thresholds (`Standard`, `Governance`, `Constitutional`)
+- Wave 4 complete:
+  - constitutional `UpgradeRuntime` action
+  - hash-bound uploaded code (`upload_runtime_code`, `PendingRuntimeCode`)
+  - runtime code applied via `set_code` and pending code cleared on success
+- Remaining hardening backlog: turnout/quorum policy and richer runtime-code queueing UX.
 
 ## Build status
 
@@ -144,7 +149,7 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
 |---|---|
 | `cargo check` | pass |
 | `cargo clippy` | pass (existing node-template warnings remain) |
-| `cargo test` | pass (148 tests total) |
+| `cargo test` | pass (167 tests total) |
 | `cargo build` | pass |
 
 ## Upstream warnings
@@ -155,15 +160,19 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
 
 ## Latest branch changes
 
-- Wave 1A integrated: proposal governance parameters moved from compile-time config to on-chain storage with genesis defaults.
-- Wave 1B integrated: membership governance parameters (including suspension threshold) moved from hardcoded logic/constants to on-chain storage.
-- Added root-gated parameter setter dispatchables in proposals and membership as Wave 1 placeholders.
-- Added per-pallet `on_runtime_upgrade` backfill migrations for governance parameter storage keys.
-- Bumped runtime `spec_version` to `102` for Wave 1 stabilization.
-- Wired runtime `fast-local` to proposals + membership pallet `fast-local` defaults.
-- Updated runtime configs to remove compile-time `VotingPeriod` associated type bindings for proposals and membership.
-- Updated proposal + membership mock genesis config and unit tests for storage-backed parameter behavior.
-- Updated integration test helpers to read voting periods from pallet storage.
-- Promoted ADR drafts to:
-  - `ADR 009 — On-chain storage for proposal governance parameters`
-  - `ADR 010 — On-chain storage for membership governance parameters`
+- Wave 2 integrated:
+  - generalized execution with typed `GovernanceAction`
+  - governance-origin gating for proposals + membership setters
+  - runtime version bump to `spec_version 103`
+  - `ADR 011 — Generalized proposal execution with GovernanceAction enum`
+- Wave 3 integrated:
+  - mandatory execution delay enforcement
+  - class-routed threshold tallying
+  - promoted ADRs:
+    - `ADR 012 — Execution delay time-lock`
+    - `ADR 013 — Proposal class system`
+- Wave 4 integrated:
+  - constitutional runtime-upgrade governance flow
+  - runtime code upload + hash verification + `set_code` execution path
+  - runtime version bump to `spec_version 104`
+  - `ADR 014 — Runtime upgrade governance`
