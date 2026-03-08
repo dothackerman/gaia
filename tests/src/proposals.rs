@@ -59,8 +59,11 @@ fn non_member_cannot_submit_proposal() {
                 RuntimeOrigin::signed(dave()),
                 bounded_title(b"t"),
                 bounded_desc(b"d"),
-                100,
-                10
+                gaia_proposals::pallet::ProposalClass::Standard,
+                gaia_proposals::pallet::GovernanceAction::DisburseToAccount {
+                    recipient: dave(),
+                    amount: 100,
+                }
             ),
             gaia_proposals::Error::<Runtime>::NotActiveMember
         );
@@ -192,7 +195,7 @@ fn tally_fails_for_already_tallied_proposal() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn execute_restricted_to_organizer() {
+fn execute_allowed_for_non_organizer() {
     new_test_ext().execute_with(|| {
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
         let id = submit_default_proposal();
@@ -211,14 +214,7 @@ fn execute_restricted_to_organizer() {
             RuntimeOrigin::signed(alice()),
             id
         ));
-        assert_noop!(
-            Proposals::execute_proposal(RuntimeOrigin::signed(bob()), id),
-            gaia_proposals::Error::<Runtime>::NotOrganizer
-        );
-        assert_ok!(Proposals::execute_proposal(
-            RuntimeOrigin::signed(alice()),
-            id
-        ));
+        assert_ok!(Proposals::execute_proposal(RuntimeOrigin::signed(bob()), id));
     });
 }
 
@@ -337,8 +333,11 @@ fn concurrent_proposals_independent_voting() {
             RuntimeOrigin::signed(bob()),
             bounded_title(b"Second"),
             bounded_desc(b"Another proposal"),
-            200,
-            20
+            gaia_proposals::pallet::ProposalClass::Standard,
+            gaia_proposals::pallet::GovernanceAction::DisburseToAccount {
+                recipient: bob(),
+                amount: 200,
+            }
         ));
         let id2 = gaia_proposals::pallet::ProposalCount::<Runtime>::get();
 
@@ -408,8 +407,11 @@ fn concurrent_proposals_exhaust_treasury() {
             RuntimeOrigin::signed(bob()),
             bounded_title(b"Second"),
             bounded_desc(b"Another"),
-            100,
-            20
+            gaia_proposals::pallet::ProposalClass::Standard,
+            gaia_proposals::pallet::GovernanceAction::DisburseToAccount {
+                recipient: bob(),
+                amount: 100,
+            }
         ));
         let id2 = gaia_proposals::pallet::ProposalCount::<Runtime>::get();
 
@@ -466,8 +468,11 @@ fn zero_amount_proposal_execution_fails() {
             RuntimeOrigin::signed(alice()),
             bounded_title(b"Free event"),
             bounded_desc(b"No cost"),
-            0,
-            10
+            gaia_proposals::pallet::ProposalClass::Standard,
+            gaia_proposals::pallet::GovernanceAction::DisburseToAccount {
+                recipient: alice(),
+                amount: 0,
+            }
         ));
         let id = gaia_proposals::pallet::ProposalCount::<Runtime>::get();
 

@@ -6,13 +6,13 @@
 //! ## Overview
 //!
 //! - Any active member may submit a proposal specifying a title, description,
-//!   requested amount, and the target event block.
+//!   class, and typed governance action.
 //! - Active members vote yes or no during the voting window
 //!   (`submitted_at` … `submitted_at + ProposalVotingPeriod`).
 //! - After the window closes, anyone may call `tally_proposal` to compute the
-//!   result: simple majority (yes > no) → Approved, otherwise Rejected.
-//! - An Approved proposal may be executed exactly once; execution transfers
-//!   funds via `TreasuryHandler::disburse`.
+//!   result and transition to `Approved` or `Rejected`.
+//! - An Approved proposal may be executed exactly once; execution dispatches
+//!   the proposal's `GovernanceAction`.
 //!
 //! ## Invariants enforced
 //!
@@ -58,10 +58,13 @@ pub trait MembershipGovernance<Origin, BlockNumber> {
 pub mod pallet {
     use super::*;
     use frame_support::pallet_prelude::*;
+    use frame_support::sp_runtime::traits::AccountIdConversion;
     use frame_support::traits::StorageVersion;
     use frame_support::sp_runtime::traits::SaturatedConversion;
     use frame_support::sp_runtime::Saturating;
+    use frame_support::PalletId;
     use frame_system::pallet_prelude::*;
+    use frame_system::RawOrigin;
 
     /// Maximum length of a proposal title in bytes.
     pub const MAX_TITLE_LEN: u32 = 128;
@@ -73,7 +76,17 @@ pub mod pallet {
     pub type ProposalId = u32;
 
     /// Lifecycle state of a proposal.
-    #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+    #[derive(
+        Clone,
+        Encode,
+        Decode,
+        DecodeWithMemTracking,
+        Eq,
+        PartialEq,
+        RuntimeDebug,
+        TypeInfo,
+        MaxEncodedLen,
+    )]
     pub enum ProposalStatus {
         /// Voting window is open.
         Active,
@@ -85,15 +98,90 @@ pub mod pallet {
         Executed,
     }
 
+    /// Proposal approval class.
+    #[derive(
+        Clone,
+        Encode,
+        Decode,
+        DecodeWithMemTracking,
+        Eq,
+        PartialEq,
+        RuntimeDebug,
+        TypeInfo,
+        MaxEncodedLen,
+    )]
+    pub enum ProposalClass {
+        Standard,
+        Governance,
+        Constitutional,
+    }
+
+    /// Typed governance action payload executed when a proposal is approved.
+    #[derive(
+        Clone,
+        Encode,
+        Decode,
+        DecodeWithMemTracking,
+        Eq,
+        PartialEq,
+        RuntimeDebug,
+        TypeInfo,
+        MaxEncodedLen,
+    )]
+    pub enum GovernanceAction<AccountId, Balance, BlockNumber> {
+        DisburseToAccount {
+            recipient: AccountId,
+            amount: Balance,
+        },
+        SetProposalVotingPeriod {
+            blocks: BlockNumber,
+        },
+        SetExecutionDelay {
+            blocks: BlockNumber,
+        },
+        SetStandardApprovalThreshold {
+            numerator: u32,
+            denominator: u32,
+        },
+        SetGovernanceApprovalThreshold {
+            numerator: u32,
+            denominator: u32,
+        },
+        SetConstitutionalApprovalThreshold {
+            numerator: u32,
+            denominator: u32,
+        },
+        SetMembershipVotingPeriod {
+            blocks: BlockNumber,
+        },
+        SetMembershipApprovalThreshold {
+            numerator: u32,
+            denominator: u32,
+        },
+        SetSuspensionThreshold {
+            numerator: u32,
+            denominator: u32,
+        },
+    }
+
     /// On-chain record for a spending proposal.
-    #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+    #[derive(
+        Clone,
+        Encode,
+        Decode,
+        DecodeWithMemTracking,
+        Eq,
+        PartialEq,
+        TypeInfo,
+        MaxEncodedLen,
+    )]
     #[scale_info(skip_type_params(T))]
     pub struct ProposalRecord<T: Config> {
         pub title: BoundedVec<u8, ConstU32<MAX_TITLE_LEN>>,
         pub description: BoundedVec<u8, ConstU32<MAX_DESC_LEN>>,
-        pub amount: T::Balance,
-        pub organizer: T::AccountId,
-        pub event_block: BlockNumberFor<T>,
+        pub class: ProposalClass,
+        pub action: GovernanceAction<T::AccountId, T::Balance, BlockNumberFor<T>>,
+        pub approved_at: Option<BlockNumberFor<T>>,
         pub status: ProposalStatus,
         pub submitted_at: BlockNumberFor<T>,
         /// Block number after which tally may be called.
@@ -119,6 +207,13 @@ pub mod pallet {
 
         /// Cross-pallet treasury disbursement.
         type Treasury: super::TreasuryHandler<Self::AccountId, Self::Balance>;
+
+        /// Cross-pallet membership-governance setter bridge.
+        type MembershipGovernance: super::MembershipGovernance<OriginFor<Self>, BlockNumberFor<Self>>;
+
+        /// PalletId-derived sovereign account used as GovernanceOrigin.
+        #[pallet::constant]
+        type GovernancePalletId: Get<PalletId>;
     }
 
     // ---------------------------------------------------------------------------
@@ -337,11 +432,7 @@ pub mod pallet {
         /// Tally completed without a yes majority — proposal is rejected.
         ProposalRejected { proposal_id: ProposalId },
         /// An approved proposal was executed and funds disbursed.
-        ProposalExecuted {
-            proposal_id: ProposalId,
-            organizer: T::AccountId,
-            amount: T::Balance,
-        },
+        ProposalExecuted { proposal_id: ProposalId },
         /// Proposal voting period parameter was updated.
         ProposalVotingPeriodSet { blocks: BlockNumberFor<T> },
         /// Proposal execution delay parameter was updated.
@@ -384,6 +475,10 @@ pub mod pallet {
         DescriptionTooLong,
         /// Invalid threshold fraction.
         InvalidThreshold,
+        /// Proposal class does not match action requirements.
+        ProposalClassMismatch,
+        /// Setter was called by an origin other than the governance account.
+        NotGovernanceOrigin,
     }
 
     // ---------------------------------------------------------------------------
@@ -402,13 +497,17 @@ pub mod pallet {
             origin: OriginFor<T>,
             title: BoundedVec<u8, ConstU32<MAX_TITLE_LEN>>,
             description: BoundedVec<u8, ConstU32<MAX_DESC_LEN>>,
-            amount: T::Balance,
-            event_block: BlockNumberFor<T>,
+            class: ProposalClass,
+            action: GovernanceAction<T::AccountId, T::Balance, BlockNumberFor<T>>,
         ) -> DispatchResult {
             let organizer = ensure_signed(origin)?;
             ensure!(
                 T::Membership::is_active_member(&organizer),
                 Error::<T>::NotActiveMember
+            );
+            ensure!(
+                class == Self::required_class_for_action(&action),
+                Error::<T>::ProposalClassMismatch
             );
 
             let now = frame_system::Pallet::<T>::block_number();
@@ -422,9 +521,9 @@ pub mod pallet {
             let record = ProposalRecord::<T> {
                 title,
                 description,
-                amount,
-                organizer: organizer.clone(),
-                event_block,
+                class,
+                action,
+                approved_at: None,
                 status: ProposalStatus::Active,
                 submitted_at: now,
                 vote_end,
@@ -514,6 +613,7 @@ pub mod pallet {
 
             if yes > no {
                 proposal.status = ProposalStatus::Approved;
+                proposal.approved_at = Some(now);
                 Proposals::<T>::insert(proposal_id, proposal);
                 Self::deposit_event(Event::ProposalApproved { proposal_id });
             } else {
@@ -533,12 +633,10 @@ pub mod pallet {
         #[pallet::call_index(3)]
         #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(2, 1))]
         pub fn execute_proposal(origin: OriginFor<T>, proposal_id: ProposalId) -> DispatchResult {
-            let caller = ensure_signed(origin)?;
+            ensure_signed(origin)?;
 
             let mut proposal =
                 Proposals::<T>::get(proposal_id).ok_or(Error::<T>::ProposalNotFound)?;
-
-            ensure!(caller == proposal.organizer, Error::<T>::NotOrganizer);
 
             // I-3: reject if already executed.
             if proposal.status == ProposalStatus::Executed {
@@ -550,17 +648,14 @@ pub mod pallet {
                 Error::<T>::ProposalNotApproved
             );
 
-            // Disburse first; if it fails the status stays Approved.
-            T::Treasury::disburse(&proposal.organizer, proposal.amount)?;
+            let governance_account = T::GovernancePalletId::get().into_account_truncating();
+            let governance_origin = RawOrigin::Signed(governance_account).into();
+            Self::dispatch_governance_action(governance_origin, &proposal.action)?;
 
             proposal.status = ProposalStatus::Executed;
             Proposals::<T>::insert(proposal_id, &proposal);
 
-            Self::deposit_event(Event::ProposalExecuted {
-                proposal_id,
-                organizer: proposal.organizer,
-                amount: proposal.amount,
-            });
+            Self::deposit_event(Event::ProposalExecuted { proposal_id });
 
             Ok(())
         }
@@ -572,7 +667,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             blocks: BlockNumberFor<T>,
         ) -> DispatchResult {
-            ensure_root(origin)?;
+            Self::ensure_governance_origin(origin)?;
             ProposalVotingPeriod::<T>::put(blocks);
             Self::deposit_event(Event::ProposalVotingPeriodSet { blocks });
             Ok(())
@@ -585,7 +680,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             blocks: BlockNumberFor<T>,
         ) -> DispatchResult {
-            ensure_root(origin)?;
+            Self::ensure_governance_origin(origin)?;
             ExecutionDelay::<T>::put(blocks);
             Self::deposit_event(Event::ExecutionDelaySet { blocks });
             Ok(())
@@ -599,7 +694,7 @@ pub mod pallet {
             numerator: u32,
             denominator: u32,
         ) -> DispatchResult {
-            ensure_root(origin)?;
+            Self::ensure_governance_origin(origin)?;
             Self::ensure_valid_threshold(numerator, denominator)?;
             StandardApprovalNumerator::<T>::put(numerator);
             StandardApprovalDenominator::<T>::put(denominator);
@@ -618,7 +713,7 @@ pub mod pallet {
             numerator: u32,
             denominator: u32,
         ) -> DispatchResult {
-            ensure_root(origin)?;
+            Self::ensure_governance_origin(origin)?;
             Self::ensure_valid_threshold(numerator, denominator)?;
             GovernanceApprovalNumerator::<T>::put(numerator);
             GovernanceApprovalDenominator::<T>::put(denominator);
@@ -637,7 +732,7 @@ pub mod pallet {
             numerator: u32,
             denominator: u32,
         ) -> DispatchResult {
-            ensure_root(origin)?;
+            Self::ensure_governance_origin(origin)?;
             Self::ensure_valid_threshold(numerator, denominator)?;
             ConstitutionalApprovalNumerator::<T>::put(numerator);
             ConstitutionalApprovalDenominator::<T>::put(denominator);
@@ -650,6 +745,91 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        fn required_class_for_action(
+            action: &GovernanceAction<T::AccountId, T::Balance, BlockNumberFor<T>>,
+        ) -> ProposalClass {
+            match action {
+                GovernanceAction::DisburseToAccount { .. } => ProposalClass::Standard,
+                GovernanceAction::SetProposalVotingPeriod { .. }
+                | GovernanceAction::SetExecutionDelay { .. }
+                | GovernanceAction::SetMembershipVotingPeriod { .. } => ProposalClass::Governance,
+                GovernanceAction::SetStandardApprovalThreshold { .. }
+                | GovernanceAction::SetGovernanceApprovalThreshold { .. }
+                | GovernanceAction::SetConstitutionalApprovalThreshold { .. }
+                | GovernanceAction::SetMembershipApprovalThreshold { .. }
+                | GovernanceAction::SetSuspensionThreshold { .. } => {
+                    ProposalClass::Constitutional
+                }
+            }
+        }
+
+        fn ensure_governance_origin(origin: OriginFor<T>) -> DispatchResult {
+            let caller = ensure_signed(origin)?;
+            let expected = T::GovernancePalletId::get().into_account_truncating();
+            ensure!(caller == expected, Error::<T>::NotGovernanceOrigin);
+            Ok(())
+        }
+
+        fn dispatch_governance_action(
+            governance_origin: OriginFor<T>,
+            action: &GovernanceAction<T::AccountId, T::Balance, BlockNumberFor<T>>,
+        ) -> DispatchResult {
+            match action {
+                GovernanceAction::DisburseToAccount { recipient, amount } => {
+                    T::Treasury::disburse(recipient, *amount)
+                }
+                GovernanceAction::SetProposalVotingPeriod { blocks } => {
+                    Self::set_proposal_voting_period(governance_origin, *blocks)
+                }
+                GovernanceAction::SetExecutionDelay { blocks } => {
+                    Self::set_execution_delay(governance_origin, *blocks)
+                }
+                GovernanceAction::SetStandardApprovalThreshold {
+                    numerator,
+                    denominator,
+                } => Self::set_standard_approval_threshold(
+                    governance_origin,
+                    *numerator,
+                    *denominator,
+                ),
+                GovernanceAction::SetGovernanceApprovalThreshold {
+                    numerator,
+                    denominator,
+                } => Self::set_governance_approval_threshold(
+                    governance_origin,
+                    *numerator,
+                    *denominator,
+                ),
+                GovernanceAction::SetConstitutionalApprovalThreshold {
+                    numerator,
+                    denominator,
+                } => Self::set_constitutional_approval_threshold(
+                    governance_origin,
+                    *numerator,
+                    *denominator,
+                ),
+                GovernanceAction::SetMembershipVotingPeriod { blocks } => {
+                    T::MembershipGovernance::set_voting_period(governance_origin, *blocks)
+                }
+                GovernanceAction::SetMembershipApprovalThreshold {
+                    numerator,
+                    denominator,
+                } => T::MembershipGovernance::set_approval_threshold(
+                    governance_origin,
+                    *numerator,
+                    *denominator,
+                ),
+                GovernanceAction::SetSuspensionThreshold {
+                    numerator,
+                    denominator,
+                } => T::MembershipGovernance::set_suspension_threshold(
+                    governance_origin,
+                    *numerator,
+                    *denominator,
+                ),
+            }
+        }
+
         fn ensure_valid_threshold(numerator: u32, denominator: u32) -> DispatchResult {
             ensure!(denominator != 0, Error::<T>::InvalidThreshold);
             ensure!(numerator <= denominator, Error::<T>::InvalidThreshold);

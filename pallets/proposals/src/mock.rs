@@ -1,5 +1,5 @@
 use crate as gaia_proposals;
-use frame_support::{derive_impl, dispatch::DispatchResult};
+use frame_support::{derive_impl, dispatch::DispatchResult, parameter_types, PalletId};
 use sp_runtime::BuildStorage;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
@@ -85,6 +85,34 @@ impl gaia_proposals::TreasuryHandler<u64, u64> for MockTreasury {
     }
 }
 
+pub struct MockMembershipGovernance;
+
+impl gaia_proposals::MembershipGovernance<RuntimeOrigin, u64> for MockMembershipGovernance {
+    fn set_voting_period(origin: RuntimeOrigin, blocks: u64) -> DispatchResult {
+        Proposals::set_proposal_voting_period(origin, blocks)
+    }
+
+    fn set_approval_threshold(
+        origin: RuntimeOrigin,
+        numerator: u32,
+        denominator: u32,
+    ) -> DispatchResult {
+        Proposals::set_standard_approval_threshold(origin, numerator, denominator)
+    }
+
+    fn set_suspension_threshold(
+        origin: RuntimeOrigin,
+        numerator: u32,
+        denominator: u32,
+    ) -> DispatchResult {
+        Proposals::set_governance_approval_threshold(origin, numerator, denominator)
+    }
+}
+
+parameter_types! {
+    pub const GovernancePalletId: PalletId = PalletId(*b"ga/govn0");
+}
+
 // ---------------------------------------------------------------------------
 // Pallet config
 // ---------------------------------------------------------------------------
@@ -94,6 +122,8 @@ impl gaia_proposals::Config for Test {
     type Balance = u64;
     type Membership = MockMembership;
     type Treasury = MockTreasury;
+    type MembershipGovernance = MockMembershipGovernance;
+    type GovernancePalletId = GovernancePalletId;
 }
 
 // ---------------------------------------------------------------------------
