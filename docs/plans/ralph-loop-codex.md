@@ -49,7 +49,7 @@ Implement Wave 1 from docs/plans/governance-on-chain.md.
 ```
 
 This mirrors the Claude plugin's state-file approach and keeps loop state
-inspectable locally during the session.
+inspectable in git history.
 
 ---
 
