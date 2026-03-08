@@ -49,11 +49,33 @@ fn submit_default(origin: u64) -> u32 {
     crate::pallet::ProposalCount::<Test>::get()
 }
 
+fn submit_with_class(origin: u64, class: ProposalClass) -> u32 {
+    let action = match class {
+        ProposalClass::Standard => GovernanceAction::DisburseToAccount {
+            recipient: origin,
+            amount: 100u64,
+        },
+        ProposalClass::Governance => GovernanceAction::SetProposalVotingPeriod { blocks: 25u64 },
+        ProposalClass::Constitutional => GovernanceAction::SetConstitutionalApprovalThreshold {
+            numerator: 9,
+            denominator: 10,
+        },
+    };
+    assert_ok!(Proposals::submit_proposal(
+        RuntimeOrigin::signed(origin),
+        bounded_title(b"Governance proposal"),
+        bounded_desc(b"parameter update"),
+        class,
+        action,
+    ));
+    crate::pallet::ProposalCount::<Test>::get()
+}
+
 /// Advance chain to a block number past the voting window.
 fn advance_past_voting() {
-    // current block is 1 after genesis.
     let period = ProposalVotingPeriod::<Test>::get();
-    System::set_block_number(period + 2);
+    let now = System::block_number();
+    System::set_block_number(now.saturating_add(period).saturating_add(1));
 }
 
 fn governance_origin() -> RuntimeOrigin {
@@ -413,6 +435,100 @@ fn tally_rejects_with_no_majority() {
         assert_eq!(proposal.status, ProposalStatus::Rejected);
         System::assert_last_event(Event::ProposalRejected { proposal_id: id }.into());
     });
+}
+
+#[test]
+fn governance_class_requires_80_percent() {
+    new_test_ext().execute_with(|| {
+        // 4 yes / 1 no => 80% (approve)
+        MockMembership::add(5);
+        MockMembership::add(6);
+        let id = submit_with_class(ALICE, ProposalClass::Governance);
+        for voter in [ALICE, BOB, CHARLIE, 5] {
+            assert_ok!(Proposals::vote_on_proposal(
+                RuntimeOrigin::signed(voter),
+                id,
+                true
+            ));
+        }
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(6),
+            id,
+            false
+        ));
+        advance_past_voting();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(ALICE), id));
+        assert_eq!(ProposalStorage::<Test>::get(id).unwrap().status, ProposalStatus::Approved);
+
+        // 3 yes / 2 no => 60% (reject)
+        let id2 = submit_with_class(ALICE, ProposalClass::Governance);
+        for voter in [ALICE, BOB, CHARLIE] {
+            assert_ok!(Proposals::vote_on_proposal(
+                RuntimeOrigin::signed(voter),
+                id2,
+                true
+            ));
+        }
+        for voter in [5, 6] {
+            assert_ok!(Proposals::vote_on_proposal(
+                RuntimeOrigin::signed(voter),
+                id2,
+                false
+            ));
+        }
+        advance_past_voting();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(ALICE), id2));
+        assert_eq!(
+            ProposalStorage::<Test>::get(id2).unwrap().status,
+            ProposalStatus::Rejected
+        );
+    });
+}
+
+#[test]
+fn constitutional_class_requires_90_percent() {
+    new_test_ext().execute_with(|| {
+        for who in 5..=12 {
+            MockMembership::add(who);
+        }
+        MockMembership::add(11);
+        let id = submit_proposal_with_votes(9, 1, ProposalClass::Constitutional);
+        assert_eq!(ProposalStorage::<Test>::get(id).unwrap().status, ProposalStatus::Approved);
+
+        let id2 = submit_proposal_with_votes(8, 2, ProposalClass::Constitutional);
+        assert_eq!(
+            ProposalStorage::<Test>::get(id2).unwrap().status,
+            ProposalStatus::Rejected
+        );
+    });
+}
+
+fn submit_proposal_with_votes(yes: usize, no: usize, class: ProposalClass) -> u32 {
+    let id = submit_with_class(ALICE, class);
+    let mut voters: Vec<u64> = vec![ALICE, BOB, CHARLIE, 5, 6, 7, 8, 9, 10, 11, 12];
+    while voters.len() < yes + no {
+        let next = (voters.len() as u64) + 20;
+        MockMembership::add(next);
+        voters.push(next);
+    }
+
+    for voter in voters.iter().take(yes) {
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(*voter),
+            id,
+            true
+        ));
+    }
+    for voter in voters.iter().skip(yes).take(no) {
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(*voter),
+            id,
+            false
+        ));
+    }
+    advance_past_voting();
+    assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(ALICE), id));
+    id
 }
 
 // ---------------------------------------------------------------------------

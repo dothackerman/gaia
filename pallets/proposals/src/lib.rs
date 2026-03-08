@@ -610,8 +610,23 @@ pub mod pallet {
 
             let yes = ProposalYesCount::<T>::get(proposal_id);
             let no = ProposalNoCount::<T>::get(proposal_id);
+            let total = yes.saturating_add(no);
+            let (num, den) = match proposal.class {
+                ProposalClass::Standard => (
+                    StandardApprovalNumerator::<T>::get(),
+                    StandardApprovalDenominator::<T>::get(),
+                ),
+                ProposalClass::Governance => (
+                    GovernanceApprovalNumerator::<T>::get(),
+                    GovernanceApprovalDenominator::<T>::get(),
+                ),
+                ProposalClass::Constitutional => (
+                    ConstitutionalApprovalNumerator::<T>::get(),
+                    ConstitutionalApprovalDenominator::<T>::get(),
+                ),
+            };
 
-            if yes > no {
+            if yes.saturating_mul(den) >= total.saturating_mul(num) {
                 proposal.status = ProposalStatus::Approved;
                 proposal.approved_at = Some(now);
                 Proposals::<T>::insert(proposal_id, proposal);
