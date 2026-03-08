@@ -1,6 +1,7 @@
 use crate::common::*;
 use frame_support::{assert_noop, assert_ok};
-use gaia_runtime::{Balances, Proposals, Runtime, RuntimeOrigin, Treasury};
+use gaia_runtime::{AccountId, Balances, Proposals, Runtime, RuntimeOrigin, Treasury};
+use sp_runtime::AccountId32;
 
 // ---------------------------------------------------------------------------
 // Full lifecycle
@@ -130,7 +131,7 @@ fn proposal_rejected_when_no_majority() {
 }
 
 #[test]
-fn tally_rejects_when_tie_vote() {
+fn standard_class_tie_vote_is_approved() {
     new_test_ext().execute_with(|| {
         let id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
@@ -148,12 +149,12 @@ fn tally_rejects_when_tie_vote() {
             RuntimeOrigin::signed(charlie()),
             id
         ));
-        // yes == no → Rejected (simple majority requires yes > no)
+        // Standard default threshold is 1/2, so tie passes.
         assert_eq!(
             gaia_proposals::pallet::Proposals::<Runtime>::get(id)
                 .unwrap()
                 .status,
-            gaia_proposals::pallet::ProposalStatus::Rejected
+            gaia_proposals::pallet::ProposalStatus::Approved
         );
     });
 }
@@ -318,7 +319,6 @@ fn execute_active_proposal_fails() {
 #[test]
 fn execute_proposal_respects_configured_execution_delay() {
     new_test_ext().execute_with(|| {
-        // Proposal A: set execution delay to 3 blocks via governance action.
         assert_ok!(Proposals::submit_proposal(
             RuntimeOrigin::signed(alice()),
             bounded_title(b"Set delay"),
@@ -346,7 +346,6 @@ fn execute_proposal_respects_configured_execution_delay() {
         ));
         assert_eq!(gaia_proposals::ExecutionDelay::<Runtime>::get(), 3);
 
-        // Proposal B: standard disbursement should now respect the delay.
         assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(alice()), 500));
         let payout_id = submit_default_proposal();
         assert_ok!(Proposals::vote_on_proposal(
@@ -369,6 +368,158 @@ fn execute_proposal_respects_configured_execution_delay() {
             gaia_proposals::Error::<Runtime>::ExecutionTooEarly
         );
     });
+}
+
+#[test]
+fn governance_class_proposal_end_to_end() {
+    new_test_ext_with_members(&[
+        (alice(), b"Alice"),
+        (bob(), b"Bob"),
+        (charlie(), b"Charlie"),
+        (dave(), b"Dave"),
+        (eve(), b"Eve"),
+    ])
+    .execute_with(|| {
+        assert_ok!(Proposals::submit_proposal(
+            RuntimeOrigin::signed(alice()),
+            bounded_title(b"Set voting period"),
+            bounded_desc(b"Governance change"),
+            gaia_proposals::pallet::ProposalClass::Governance,
+            gaia_proposals::pallet::GovernanceAction::SetProposalVotingPeriod { blocks: 77 },
+        ));
+        let id = gaia_proposals::pallet::ProposalCount::<Runtime>::get();
+
+        for voter in [alice(), bob(), charlie(), dave()] {
+            assert_ok!(Proposals::vote_on_proposal(
+                RuntimeOrigin::signed(voter),
+                id,
+                true
+            ));
+        }
+        assert_ok!(Proposals::vote_on_proposal(
+            RuntimeOrigin::signed(eve()),
+            id,
+            false
+        ));
+
+        advance_past_voting_period();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(alice()), id));
+        assert_ok!(Proposals::execute_proposal(
+            RuntimeOrigin::signed(alice()),
+            id
+        ));
+        assert_eq!(gaia_proposals::ProposalVotingPeriod::<Runtime>::get(), 77);
+    });
+}
+
+#[test]
+fn constitutional_class_threshold_change_end_to_end() {
+    let m7 = synthetic_member(7);
+    let m8 = synthetic_member(8);
+    let m9 = synthetic_member(9);
+    let m10 = synthetic_member(10);
+    new_test_ext_with_members(&[
+        (alice(), b"Alice"),
+        (bob(), b"Bob"),
+        (charlie(), b"Charlie"),
+        (dave(), b"Dave"),
+        (eve(), b"Eve"),
+        (ferdie(), b"Ferdie"),
+        (m7.clone(), b"M7"),
+        (m8.clone(), b"M8"),
+        (m9.clone(), b"M9"),
+        (m10.clone(), b"M10"),
+    ])
+    .execute_with(|| {
+        assert_ok!(Proposals::submit_proposal(
+            RuntimeOrigin::signed(alice()),
+            bounded_title(b"Set constitutional threshold"),
+            bounded_desc(b"Constitutional change"),
+            gaia_proposals::pallet::ProposalClass::Constitutional,
+            gaia_proposals::pallet::GovernanceAction::SetConstitutionalApprovalThreshold {
+                numerator: 19,
+                denominator: 20,
+            },
+        ));
+        let id = gaia_proposals::pallet::ProposalCount::<Runtime>::get();
+
+        for voter in [
+            alice(),
+            bob(),
+            charlie(),
+            dave(),
+            eve(),
+            ferdie(),
+            m7.clone(),
+            m8.clone(),
+            m9.clone(),
+            m10.clone(),
+        ] {
+            let yes = voter != m10;
+            assert_ok!(Proposals::vote_on_proposal(
+                RuntimeOrigin::signed(voter),
+                id,
+                yes
+            ));
+        }
+        advance_past_voting_period();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(alice()), id));
+        assert_ok!(Proposals::execute_proposal(
+            RuntimeOrigin::signed(alice()),
+            id
+        ));
+        assert_eq!(gaia_proposals::ConstitutionalApprovalNumerator::<Runtime>::get(), 19);
+        assert_eq!(
+            gaia_proposals::ConstitutionalApprovalDenominator::<Runtime>::get(),
+            20
+        );
+
+        // 8/10 should fail once threshold is 95%.
+        assert_ok!(Proposals::submit_proposal(
+            RuntimeOrigin::signed(alice()),
+            bounded_title(b"Second constitutional change"),
+            bounded_desc(b"Should fail"),
+            gaia_proposals::pallet::ProposalClass::Constitutional,
+            gaia_proposals::pallet::GovernanceAction::SetConstitutionalApprovalThreshold {
+                numerator: 9,
+                denominator: 10,
+            },
+        ));
+        let id2 = gaia_proposals::pallet::ProposalCount::<Runtime>::get();
+        for voter in [
+            alice(),
+            bob(),
+            charlie(),
+            dave(),
+            eve(),
+            ferdie(),
+            m7.clone(),
+            m8.clone(),
+            m9.clone(),
+            m10.clone(),
+        ] {
+            let yes = voter != m10 && voter != m9;
+            assert_ok!(Proposals::vote_on_proposal(
+                RuntimeOrigin::signed(voter),
+                id2,
+                yes
+            ));
+        }
+        advance_past_voting_period();
+        assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(alice()), id2));
+        assert_eq!(
+            gaia_proposals::pallet::Proposals::<Runtime>::get(id2)
+                .unwrap()
+                .status,
+            gaia_proposals::pallet::ProposalStatus::Rejected
+        );
+    });
+}
+
+fn synthetic_member(seed: u8) -> AccountId {
+    let mut bytes = [0u8; 32];
+    bytes[0] = seed;
+    AccountId32::new(bytes).into()
 }
 
 // ---------------------------------------------------------------------------
