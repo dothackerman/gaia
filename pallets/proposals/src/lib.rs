@@ -479,6 +479,10 @@ pub mod pallet {
         ProposalClassMismatch,
         /// Setter was called by an origin other than the governance account.
         NotGovernanceOrigin,
+        /// Proposal execution delay has not elapsed yet.
+        ExecutionTooEarly,
+        /// Proposal was marked approved without an approval block marker.
+        ProposalNotYetApproved,
     }
 
     // ---------------------------------------------------------------------------
@@ -610,8 +614,23 @@ pub mod pallet {
 
             let yes = ProposalYesCount::<T>::get(proposal_id);
             let no = ProposalNoCount::<T>::get(proposal_id);
+            let total = yes.saturating_add(no);
+            let (num, den) = match proposal.class {
+                ProposalClass::Standard => (
+                    StandardApprovalNumerator::<T>::get(),
+                    StandardApprovalDenominator::<T>::get(),
+                ),
+                ProposalClass::Governance => (
+                    GovernanceApprovalNumerator::<T>::get(),
+                    GovernanceApprovalDenominator::<T>::get(),
+                ),
+                ProposalClass::Constitutional => (
+                    ConstitutionalApprovalNumerator::<T>::get(),
+                    ConstitutionalApprovalDenominator::<T>::get(),
+                ),
+            };
 
-            if yes > no {
+            if yes.saturating_mul(den) >= total.saturating_mul(num) {
                 proposal.status = ProposalStatus::Approved;
                 proposal.approved_at = Some(now);
                 Proposals::<T>::insert(proposal_id, proposal);
@@ -647,6 +666,13 @@ pub mod pallet {
                 proposal.status == ProposalStatus::Approved,
                 Error::<T>::ProposalNotApproved
             );
+
+            let approved_at = proposal
+                .approved_at
+                .ok_or(Error::<T>::ProposalNotYetApproved)?;
+            let now = frame_system::Pallet::<T>::block_number();
+            let executable_at = approved_at.saturating_add(ExecutionDelay::<T>::get());
+            ensure!(now >= executable_at, Error::<T>::ExecutionTooEarly);
 
             let governance_account = T::GovernancePalletId::get().into_account_truncating();
             let governance_origin = RawOrigin::Signed(governance_account).into();
