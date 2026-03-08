@@ -1,6 +1,6 @@
 # Current build state
 
-Last updated: 2026-03-02 (membership governance + CLI UX upgrade).
+Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
 
 ## Node (`node/`)
 
@@ -10,11 +10,12 @@ Last updated: 2026-03-02 (membership governance + CLI UX upgrade).
 
 - Status: **GAIA pallets wired**
 - Pallets wired: `template`, `membership`, `treasury`, `proposals`
-- Runtime `spec_version`: **101** (bumped for membership interface/storage changes)
+- Runtime `spec_version`: **102** (Wave 1 storage migration backfill hardening)
 - Development preset endows tester personas (`Alice`, `Bob`, `Charlie`, `Dave`, `Eve`, `Ferdie`)
-- Voting periods:
-  - normal: `100_800` blocks (~7 days)
-  - `fast-local`: `20` blocks
+- Governance parameter model:
+  - proposal + membership voting periods now read from on-chain storage
+  - runtime `fast-local` forwards to `gaia-proposals/fast-local` and `gaia-membership/fast-local`
+  - genesis defaults still: normal `100_800` blocks (~7 days), `fast-local` `20` blocks
 
 ## Pallet: membership (`pallets/membership/`)
 
@@ -26,6 +27,9 @@ Last updated: 2026-03-02 (membership governance + CLI UX upgrade).
   - `ActiveProposalByCandidate`
   - `MembershipProposalVotes`, `MembershipProposalYesCount`, `MembershipProposalNoCount`
   - `SuspensionVotes`, `SuspensionApprovalCount`
+  - `MembershipVotingPeriod`
+  - `MembershipApprovalNumerator`, `MembershipApprovalDenominator`
+  - `SuspensionNumerator`, `SuspensionDenominator`
 - Membership proposal status: `Active`, `Approved`, `Rejected`
 - Dispatchables:
   - `propose_member(candidate, name)`
@@ -33,12 +37,17 @@ Last updated: 2026-03-02 (membership governance + CLI UX upgrade).
   - `finalize_proposal(proposal_id)`
   - `suspend_self()`
   - `vote_suspend_member(target, approve)`
+  - `set_membership_voting_period(blocks)` (root placeholder)
+  - `set_membership_approval_threshold(numerator, denominator)` (root placeholder)
+  - `set_suspension_threshold(numerator, denominator)` (root placeholder)
 - Behavior:
   - One active proposal per candidate
-  - Approval threshold is 80% of a submit-time active-member snapshot
+  - Approval threshold formula is storage-backed: `yes * d >= snapshot * n` (genesis default `4/5`)
   - Early approval if threshold is met before deadline
   - Active-member-gated finalize after deadline rejects if threshold not met
-- Tests: 30 unit tests passing
+  - Suspension threshold formula is storage-backed: `approvals * d >= others * n` (genesis default `1/1`, preserving ADR-005 unanimity)
+- Trait implementation: `MembershipGovernance` for `gaia-proposals` (Wave 2 wiring contract)
+- Tests: 38 unit tests passing
 
 ## Pallet: treasury (`pallets/treasury/`)
 
@@ -55,15 +64,29 @@ Last updated: 2026-03-02 (membership governance + CLI UX upgrade).
 
 - Status: **implemented** (`gaia-proposals`)
 - Runtime integration: wired
-- Interface ownership: defines cross-pallet traits `MembershipChecker` and `TreasuryHandler`
-- Storage: `ProposalCount`, `Proposals`, `ProposalVotes`, `ProposalYesCount`, `ProposalNoCount`
-- Dispatchables: `submit_proposal`, `vote_on_proposal`, `tally_proposal`, `execute_proposal`
+- Interface ownership: defines cross-pallet traits `MembershipChecker`, `TreasuryHandler`, and `MembershipGovernance`
+- Storage:
+  - `ProposalCount`, `Proposals`, `ProposalVotes`, `ProposalYesCount`, `ProposalNoCount`
+  - `ProposalVotingPeriod`, `ExecutionDelay`
+  - `StandardApprovalNumerator`, `StandardApprovalDenominator`
+  - `GovernanceApprovalNumerator`, `GovernanceApprovalDenominator`
+  - `ConstitutionalApprovalNumerator`, `ConstitutionalApprovalDenominator`
+- Dispatchables:
+  - `submit_proposal`, `vote_on_proposal`, `tally_proposal`, `execute_proposal`
+  - `set_proposal_voting_period(blocks)` (root placeholder)
+  - `set_execution_delay(blocks)` (root placeholder)
+  - `set_standard_approval_threshold(numerator, denominator)` (root placeholder)
+  - `set_governance_approval_threshold(numerator, denominator)` (root placeholder)
+  - `set_constitutional_approval_threshold(numerator, denominator)` (root placeholder)
 - Lifecycle: `Active -> Approved/Rejected -> Executed`
-- Voting semantics: simple majority at finalize (`yes > no`) after voting window
+- Voting semantics:
+  - `ProposalVotingPeriod` is active in submit/vote window logic (`vote_end` derives from storage)
+  - tallying remains `yes > no` in Wave 1
+  - `ExecutionDelay` and class threshold parameters are stored and settable in Wave 1, with enforcement deferred to later waves
 - Invariants enforced:
   - I-2: active-member check on every vote
   - I-3: single execution guard
-- Tests: 17 unit tests passing
+- Tests: 23 unit tests passing
 
 ## Integration tests (`tests/`)
 
@@ -105,9 +128,14 @@ Last updated: 2026-03-02 (membership governance + CLI UX upgrade).
 ## Governance hardening status
 
 - Implemented thresholds are intentionally simple:
-  - treasury proposals: `yes > no` (no quorum yet)
-  - membership proposals: 80% snapshot threshold (no turnout requirement yet)
-  - suspension: unanimity of all other active members
+  - treasury proposals: currently tallied as `yes > no` in Wave 1
+  - proposal voting period is storage-backed and active at submission time
+  - membership proposals: storage-backed default snapshot threshold `4/5` (80%)
+  - suspension: storage-backed default `1/1` (unanimity of all other active members)
+  - governance/constitutional proposal thresholds and execution delay are stored with defaults (`4/5`, `9/10`, `0`) but not enforced yet
+- Setter authority is temporarily `EnsureRoot` in Wave 1 and planned to move to governance origin in Wave 2.
+- Runtime-upgrade migrations now backfill missing governance parameter storage keys for
+  proposals + membership to preserve safe defaults on in-place upgrades.
 - This is flagged for future hardening work (quorum/turnout policy and threshold maturity).
 
 ## Build status
@@ -116,7 +144,7 @@ Last updated: 2026-03-02 (membership governance + CLI UX upgrade).
 |---|---|
 | `cargo check` | pass |
 | `cargo clippy` | pass (existing node-template warnings remain) |
-| `cargo test` | pass (134 tests total) |
+| `cargo test` | pass (148 tests total) |
 | `cargo build` | pass |
 
 ## Upstream warnings
@@ -127,11 +155,15 @@ Last updated: 2026-03-02 (membership governance + CLI UX upgrade).
 
 ## Latest branch changes
 
-- Refactored membership governance to proposal IDs with deadline-based finalization.
-- Added membership voting period runtime constant aligned with proposal defaults.
-- Migrated membership and integration tests to ID-based membership workflow.
-- Refactored CLI namespaces to plural nouns (`personas`, `memberships`, `proposals`).
-- Renamed treasury proposal CLI verb from `tally` to `finalize`.
-- Added watch list/detail UX for proposals and memberships with state/order filters.
-- Added pager integration for long watch list output (`$PAGER`, fallback `less -FR`).
-- Refreshed `tester-cli/artifacts/gaia.scale` to match runtime interface changes.
+- Wave 1A integrated: proposal governance parameters moved from compile-time config to on-chain storage with genesis defaults.
+- Wave 1B integrated: membership governance parameters (including suspension threshold) moved from hardcoded logic/constants to on-chain storage.
+- Added root-gated parameter setter dispatchables in proposals and membership as Wave 1 placeholders.
+- Added per-pallet `on_runtime_upgrade` backfill migrations for governance parameter storage keys.
+- Bumped runtime `spec_version` to `102` for Wave 1 stabilization.
+- Wired runtime `fast-local` to proposals + membership pallet `fast-local` defaults.
+- Updated runtime configs to remove compile-time `VotingPeriod` associated type bindings for proposals and membership.
+- Updated proposal + membership mock genesis config and unit tests for storage-backed parameter behavior.
+- Updated integration test helpers to read voting periods from pallet storage.
+- Promoted ADR drafts to:
+  - `ADR 009 — On-chain storage for proposal governance parameters`
+  - `ADR 010 — On-chain storage for membership governance parameters`

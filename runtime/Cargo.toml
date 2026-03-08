@@ -141,4 +141,7 @@ metadata-hash = ["substrate-wasm-builder/metadata-hash"]
 on-chain-release-build = ["metadata-hash", "sp-api/disable-logging"]
 
 # Fast voting period for local manual testing.
-fast-local = []
+fast-local = [
+	"gaia-membership/fast-local",
+	"gaia-proposals/fast-local",
+]

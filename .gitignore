@@ -24,3 +24,6 @@ Thumbs.db
 
 # Local chain data
 /chain-data/
+
+# Local Ralph loop controller state (machine/session-local)
+.codex/ralph-loop.local.md

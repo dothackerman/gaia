@@ -8,7 +8,7 @@
 //! - Any active member may submit a proposal specifying a title, description,
 //!   requested amount, and the target event block.
 //! - Active members vote yes or no during the voting window
-//!   (`submitted_at` … `submitted_at + VotingPeriod`).
+//!   (`submitted_at` … `submitted_at + ProposalVotingPeriod`).
 //! - After the window closes, anyone may call `tally_proposal` to compute the
 //!   result: simple majority (yes > no) → Approved, otherwise Rejected.
 //! - An Approved proposal may be executed exactly once; execution transfers
@@ -46,10 +46,20 @@ pub trait TreasuryHandler<AccountId, Balance> {
     fn disburse(to: &AccountId, amount: Balance) -> DispatchResult;
 }
 
+/// Interface owned by this pallet for membership-governance parameter updates.
+pub trait MembershipGovernance<Origin, BlockNumber> {
+    fn set_voting_period(origin: Origin, blocks: BlockNumber) -> DispatchResult;
+    fn set_approval_threshold(origin: Origin, numerator: u32, denominator: u32) -> DispatchResult;
+    fn set_suspension_threshold(origin: Origin, numerator: u32, denominator: u32)
+        -> DispatchResult;
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
     use frame_support::pallet_prelude::*;
+    use frame_support::traits::StorageVersion;
+    use frame_support::sp_runtime::traits::SaturatedConversion;
     use frame_support::sp_runtime::Saturating;
     use frame_system::pallet_prelude::*;
 
@@ -90,7 +100,10 @@ pub mod pallet {
         pub vote_end: BlockNumberFor<T>,
     }
 
+    const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
     #[pallet::pallet]
+    #[pallet::storage_version(STORAGE_VERSION)]
     pub struct Pallet<T>(_);
 
     #[pallet::config]
@@ -106,10 +119,6 @@ pub mod pallet {
 
         /// Cross-pallet treasury disbursement.
         type Treasury: super::TreasuryHandler<Self::AccountId, Self::Balance>;
-
-        /// Number of blocks a proposal's voting window stays open.
-        #[pallet::constant]
-        type VotingPeriod: Get<BlockNumberFor<Self>>;
     }
 
     // ---------------------------------------------------------------------------
@@ -147,6 +156,164 @@ pub mod pallet {
     pub type ProposalNoCount<T: Config> =
         StorageMap<_, Blake2_128Concat, ProposalId, u32, ValueQuery>;
 
+    /// Number of blocks a proposal's voting window stays open.
+    #[pallet::storage]
+    pub type ProposalVotingPeriod<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
+
+    /// Delay between proposal approval and execution eligibility.
+    #[pallet::storage]
+    pub type ExecutionDelay<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
+
+    /// Numerator for standard proposal approval threshold.
+    #[pallet::storage]
+    pub type StandardApprovalNumerator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Denominator for standard proposal approval threshold.
+    #[pallet::storage]
+    pub type StandardApprovalDenominator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Numerator for governance proposal approval threshold.
+    #[pallet::storage]
+    pub type GovernanceApprovalNumerator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Denominator for governance proposal approval threshold.
+    #[pallet::storage]
+    pub type GovernanceApprovalDenominator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Numerator for constitutional proposal approval threshold.
+    #[pallet::storage]
+    pub type ConstitutionalApprovalNumerator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Denominator for constitutional proposal approval threshold.
+    #[pallet::storage]
+    pub type ConstitutionalApprovalDenominator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    // ---------------------------------------------------------------------------
+    // Genesis
+    // ---------------------------------------------------------------------------
+
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T: Config> {
+        pub proposal_voting_period: BlockNumberFor<T>,
+        pub execution_delay: BlockNumberFor<T>,
+        pub standard_approval_numerator: u32,
+        pub standard_approval_denominator: u32,
+        pub governance_approval_numerator: u32,
+        pub governance_approval_denominator: u32,
+        pub constitutional_approval_numerator: u32,
+        pub constitutional_approval_denominator: u32,
+    }
+
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self {
+                proposal_voting_period: default_proposal_voting_period::<T>(),
+                execution_delay: 0u32.saturated_into(),
+                standard_approval_numerator: 1,
+                standard_approval_denominator: 2,
+                governance_approval_numerator: 4,
+                governance_approval_denominator: 5,
+                constitutional_approval_numerator: 9,
+                constitutional_approval_denominator: 10,
+            }
+        }
+    }
+
+    #[cfg(feature = "fast-local")]
+    fn default_proposal_voting_period<T: Config>() -> BlockNumberFor<T> {
+        20u32.saturated_into()
+    }
+
+    #[cfg(not(feature = "fast-local"))]
+    fn default_proposal_voting_period<T: Config>() -> BlockNumberFor<T> {
+        100_800u32.saturated_into()
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+        fn build(&self) {
+            ProposalVotingPeriod::<T>::put(self.proposal_voting_period);
+            ExecutionDelay::<T>::put(self.execution_delay);
+            StandardApprovalNumerator::<T>::put(self.standard_approval_numerator);
+            StandardApprovalDenominator::<T>::put(self.standard_approval_denominator);
+            GovernanceApprovalNumerator::<T>::put(self.governance_approval_numerator);
+            GovernanceApprovalDenominator::<T>::put(self.governance_approval_denominator);
+            ConstitutionalApprovalNumerator::<T>::put(self.constitutional_approval_numerator);
+            ConstitutionalApprovalDenominator::<T>::put(self.constitutional_approval_denominator);
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Runtime upgrades
+    // ---------------------------------------------------------------------------
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_runtime_upgrade() -> Weight {
+            let on_chain = <Pallet<T> as frame_support::traits::GetStorageVersion>::on_chain_storage_version();
+            if on_chain >= STORAGE_VERSION {
+                return Weight::zero();
+            }
+
+            // Account for on_chain_storage_version() storage read above.
+            let mut reads = 1u64;
+            let mut writes = 0u64;
+
+            reads = reads.saturating_add(1);
+            if !ProposalVotingPeriod::<T>::exists() {
+                ProposalVotingPeriod::<T>::put(default_proposal_voting_period::<T>());
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !ExecutionDelay::<T>::exists() {
+                ExecutionDelay::<T>::put(BlockNumberFor::<T>::default());
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !StandardApprovalNumerator::<T>::exists() {
+                StandardApprovalNumerator::<T>::put(1);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !StandardApprovalDenominator::<T>::exists() {
+                StandardApprovalDenominator::<T>::put(2);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !GovernanceApprovalNumerator::<T>::exists() {
+                GovernanceApprovalNumerator::<T>::put(4);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !GovernanceApprovalDenominator::<T>::exists() {
+                GovernanceApprovalDenominator::<T>::put(5);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !ConstitutionalApprovalNumerator::<T>::exists() {
+                ConstitutionalApprovalNumerator::<T>::put(9);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !ConstitutionalApprovalDenominator::<T>::exists() {
+                ConstitutionalApprovalDenominator::<T>::put(10);
+                writes = writes.saturating_add(1);
+            }
+
+            STORAGE_VERSION.put::<Pallet<T>>();
+            writes = writes.saturating_add(1);
+
+            T::DbWeight::get().reads_writes(reads, writes)
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Events
     // ---------------------------------------------------------------------------
@@ -175,6 +342,16 @@ pub mod pallet {
             organizer: T::AccountId,
             amount: T::Balance,
         },
+        /// Proposal voting period parameter was updated.
+        ProposalVotingPeriodSet { blocks: BlockNumberFor<T> },
+        /// Proposal execution delay parameter was updated.
+        ExecutionDelaySet { blocks: BlockNumberFor<T> },
+        /// Standard proposal approval threshold was updated.
+        StandardThresholdSet { numerator: u32, denominator: u32 },
+        /// Governance proposal approval threshold was updated.
+        GovernanceThresholdSet { numerator: u32, denominator: u32 },
+        /// Constitutional proposal approval threshold was updated.
+        ConstitutionalThresholdSet { numerator: u32, denominator: u32 },
     }
 
     // ---------------------------------------------------------------------------
@@ -205,6 +382,8 @@ pub mod pallet {
         TitleTooLong,
         /// The supplied description exceeds the maximum allowed length.
         DescriptionTooLong,
+        /// Invalid threshold fraction.
+        InvalidThreshold,
     }
 
     // ---------------------------------------------------------------------------
@@ -216,7 +395,7 @@ pub mod pallet {
         /// Submit a new spending proposal.
         ///
         /// The caller must be an active member. Creates a proposal in the
-        /// `Active` state with a voting window of `VotingPeriod` blocks.
+        /// `Active` state with a voting window of `ProposalVotingPeriod` blocks.
         #[pallet::call_index(0)]
         #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(2, 3))]
         pub fn submit_proposal(
@@ -233,7 +412,7 @@ pub mod pallet {
             );
 
             let now = frame_system::Pallet::<T>::block_number();
-            let vote_end = now.saturating_add(T::VotingPeriod::get());
+            let vote_end = now.saturating_add(ProposalVotingPeriod::<T>::get());
 
             let id = ProposalCount::<T>::mutate(|c| {
                 *c = c.saturating_add(1);
@@ -383,6 +562,97 @@ pub mod pallet {
                 amount: proposal.amount,
             });
 
+            Ok(())
+        }
+
+        /// Update the proposal voting period.
+        #[pallet::call_index(4)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().writes(1))]
+        pub fn set_proposal_voting_period(
+            origin: OriginFor<T>,
+            blocks: BlockNumberFor<T>,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            ProposalVotingPeriod::<T>::put(blocks);
+            Self::deposit_event(Event::ProposalVotingPeriodSet { blocks });
+            Ok(())
+        }
+
+        /// Update the proposal execution delay.
+        #[pallet::call_index(5)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().writes(1))]
+        pub fn set_execution_delay(
+            origin: OriginFor<T>,
+            blocks: BlockNumberFor<T>,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            ExecutionDelay::<T>::put(blocks);
+            Self::deposit_event(Event::ExecutionDelaySet { blocks });
+            Ok(())
+        }
+
+        /// Update the standard proposal approval threshold.
+        #[pallet::call_index(6)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().writes(2))]
+        pub fn set_standard_approval_threshold(
+            origin: OriginFor<T>,
+            numerator: u32,
+            denominator: u32,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            Self::ensure_valid_threshold(numerator, denominator)?;
+            StandardApprovalNumerator::<T>::put(numerator);
+            StandardApprovalDenominator::<T>::put(denominator);
+            Self::deposit_event(Event::StandardThresholdSet {
+                numerator,
+                denominator,
+            });
+            Ok(())
+        }
+
+        /// Update the governance proposal approval threshold.
+        #[pallet::call_index(7)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().writes(2))]
+        pub fn set_governance_approval_threshold(
+            origin: OriginFor<T>,
+            numerator: u32,
+            denominator: u32,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            Self::ensure_valid_threshold(numerator, denominator)?;
+            GovernanceApprovalNumerator::<T>::put(numerator);
+            GovernanceApprovalDenominator::<T>::put(denominator);
+            Self::deposit_event(Event::GovernanceThresholdSet {
+                numerator,
+                denominator,
+            });
+            Ok(())
+        }
+
+        /// Update the constitutional proposal approval threshold.
+        #[pallet::call_index(8)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().writes(2))]
+        pub fn set_constitutional_approval_threshold(
+            origin: OriginFor<T>,
+            numerator: u32,
+            denominator: u32,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            Self::ensure_valid_threshold(numerator, denominator)?;
+            ConstitutionalApprovalNumerator::<T>::put(numerator);
+            ConstitutionalApprovalDenominator::<T>::put(denominator);
+            Self::deposit_event(Event::ConstitutionalThresholdSet {
+                numerator,
+                denominator,
+            });
+            Ok(())
+        }
+    }
+
+    impl<T: Config> Pallet<T> {
+        fn ensure_valid_threshold(numerator: u32, denominator: u32) -> DispatchResult {
+            ensure!(denominator != 0, Error::<T>::InvalidThreshold);
+            ensure!(numerator <= denominator, Error::<T>::InvalidThreshold);
             Ok(())
         }
     }

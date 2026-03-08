@@ -6,7 +6,7 @@ Before any action:
 1. Read `AGENTS.md` in full.
 2. Read `docs/current-state.md` in full.
 3. Read `docs/plans/governance-on-chain.md` for full milestone context.
-4. Read `docs/decisions/010-generalized-proposal-execution.md` (Wave 2).
+4. Read the Wave 2 ADR titled **"Generalized proposal execution with GovernanceAction enum"** in `docs/decisions/`.
 
 Do not write any code until all four are loaded.
 
@@ -88,7 +88,11 @@ In `tests/proposals.rs` integration tests:
 
 ## ADR required
 
-Create `docs/decisions/011-execution-delay-time-lock.md`.
+This wave runs in parallel. Follow AGENTS.md §14:
+
+- Create ADR draft at `docs/decisions/draft/<branch-slug>-execution-delay-time-lock.md`
+- Use heading `# ADR DRAFT — Mandatory execution delay after proposal approval`
+- Merger promotes draft to the next sequential ADR number.
 
 Title: "Mandatory execution delay after proposal approval"
 

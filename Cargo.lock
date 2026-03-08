@@ -4520,6 +4520,7 @@ version = "0.1.0"
 dependencies = [
  "frame-support 40.1.0",
  "frame-system 40.1.0",
+ "gaia-proposals",
  "parity-scale-codec",
  "scale-info",
  "sp-core 36.1.0",

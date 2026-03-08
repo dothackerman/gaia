@@ -10,8 +10,8 @@
 //! - Membership is requested through **membership proposals** with explicit
 //!   lifecycle states: `Active -> Approved/Rejected`.
 //! - Active members propose candidates and vote on proposals.
-//! - The approval threshold is 80% of active members, snapshotted at proposal
-//!   submission time.
+//! - The approval threshold is storage-backed and checked against a submit-time
+//!   active-member snapshot. Genesis default is 80% (`4/5`).
 //! - Each proposal has a voting deadline (`vote_end`) and cannot remain active
 //!   forever; active members finalize after the deadline.
 //! - Suspended members cannot propose, vote, or finalize membership proposals.
@@ -47,7 +47,8 @@ pub trait MembershipChecker<AccountId> {
 pub mod pallet {
     use super::*;
     use frame_support::pallet_prelude::*;
-    use frame_support::sp_runtime::Saturating;
+    use frame_support::traits::StorageVersion;
+    use frame_support::sp_runtime::{traits::SaturatedConversion, Saturating};
     use frame_system::pallet_prelude::*;
 
     /// Maximum length of a member name in bytes.
@@ -112,17 +113,16 @@ pub mod pallet {
         pub status: MembershipProposalStatus,
     }
 
+    const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
     #[pallet::pallet]
+    #[pallet::storage_version(STORAGE_VERSION)]
     pub struct Pallet<T>(_);
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
         /// The overarching runtime event type.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-
-        /// Number of blocks a membership proposal stays open for voting.
-        #[pallet::constant]
-        type VotingPeriod: Get<BlockNumberFor<Self>>;
     }
 
     // ---------------------------------------------------------------------------
@@ -196,6 +196,26 @@ pub mod pallet {
     pub type SuspensionApprovalCount<T: Config> =
         StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
+    /// Number of blocks a membership proposal stays open for voting.
+    #[pallet::storage]
+    pub type MembershipVotingPeriod<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
+
+    /// Numerator for membership proposal approval threshold.
+    #[pallet::storage]
+    pub type MembershipApprovalNumerator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Denominator for membership proposal approval threshold.
+    #[pallet::storage]
+    pub type MembershipApprovalDenominator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Numerator for suspension threshold.
+    #[pallet::storage]
+    pub type SuspensionNumerator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Denominator for suspension threshold.
+    #[pallet::storage]
+    pub type SuspensionDenominator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
     // ---------------------------------------------------------------------------
     // Genesis
     // ---------------------------------------------------------------------------
@@ -224,6 +244,74 @@ pub mod pallet {
                 count = count.saturating_add(1);
             }
             ActiveMemberCount::<T>::put(count);
+            MembershipVotingPeriod::<T>::put(default_membership_voting_period::<T>());
+            MembershipApprovalNumerator::<T>::put(4);
+            MembershipApprovalDenominator::<T>::put(5);
+            SuspensionNumerator::<T>::put(1);
+            SuspensionDenominator::<T>::put(1);
+        }
+    }
+
+    #[cfg(feature = "fast-local")]
+    fn default_membership_voting_period<T: Config>() -> BlockNumberFor<T> {
+        20u32.saturated_into()
+    }
+
+    #[cfg(not(feature = "fast-local"))]
+    fn default_membership_voting_period<T: Config>() -> BlockNumberFor<T> {
+        100_800u32.saturated_into()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Runtime upgrades
+    // ---------------------------------------------------------------------------
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_runtime_upgrade() -> Weight {
+            let on_chain = <Pallet<T> as frame_support::traits::GetStorageVersion>::on_chain_storage_version();
+            if on_chain >= STORAGE_VERSION {
+                return Weight::zero();
+            }
+
+            // Account for on_chain_storage_version() storage read above.
+            let mut reads = 1u64;
+            let mut writes = 0u64;
+
+            reads = reads.saturating_add(1);
+            if !MembershipVotingPeriod::<T>::exists() {
+                MembershipVotingPeriod::<T>::put(default_membership_voting_period::<T>());
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !MembershipApprovalNumerator::<T>::exists() {
+                MembershipApprovalNumerator::<T>::put(4);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !MembershipApprovalDenominator::<T>::exists() {
+                MembershipApprovalDenominator::<T>::put(5);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !SuspensionNumerator::<T>::exists() {
+                SuspensionNumerator::<T>::put(1);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !SuspensionDenominator::<T>::exists() {
+                SuspensionDenominator::<T>::put(1);
+                writes = writes.saturating_add(1);
+            }
+
+            STORAGE_VERSION.put::<Pallet<T>>();
+            writes = writes.saturating_add(1);
+
+            T::DbWeight::get().reads_writes(reads, writes)
         }
     }
 
@@ -269,6 +357,12 @@ pub mod pallet {
             member: T::AccountId,
             reason: SuspensionReason,
         },
+        /// Membership voting period was updated.
+        MembershipVotingPeriodSet { blocks: BlockNumberFor<T> },
+        /// Membership approval threshold was updated.
+        MembershipApprovalThresholdSet { numerator: u32, denominator: u32 },
+        /// Suspension threshold was updated.
+        SuspensionThresholdSet { numerator: u32, denominator: u32 },
     }
 
     // ---------------------------------------------------------------------------
@@ -301,6 +395,8 @@ pub mod pallet {
         AlreadySuspended,
         /// A member cannot cast a peer suspension vote against themselves.
         CannotSuspendSelf,
+        /// Invalid threshold fraction.
+        InvalidThreshold,
     }
 
     // ---------------------------------------------------------------------------
@@ -333,7 +429,7 @@ pub mod pallet {
             );
 
             let now = frame_system::Pallet::<T>::block_number();
-            let vote_end = now.saturating_add(T::VotingPeriod::get());
+            let vote_end = now.saturating_add(MembershipVotingPeriod::<T>::get());
             let active_member_snapshot = ActiveMemberCount::<T>::get();
 
             let proposal_id = MembershipProposalCount::<T>::mutate(|count| {
@@ -513,12 +609,66 @@ pub mod pallet {
                     *count
                 });
 
-                let required = ActiveMemberCount::<T>::get().saturating_sub(1);
-                if approvals == required {
+                let n = SuspensionNumerator::<T>::get();
+                let d = SuspensionDenominator::<T>::get();
+                let others = ActiveMemberCount::<T>::get().saturating_sub(1);
+
+                if approvals.saturating_mul(d) >= others.saturating_mul(n) {
                     Self::suspend_member(&target, SuspensionReason::PeerVote)?;
                 }
             }
 
+            Ok(())
+        }
+
+        /// Update the membership proposal voting period.
+        #[pallet::call_index(5)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().writes(1))]
+        pub fn set_membership_voting_period(
+            origin: OriginFor<T>,
+            blocks: BlockNumberFor<T>,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            MembershipVotingPeriod::<T>::put(blocks);
+            Self::deposit_event(Event::MembershipVotingPeriodSet { blocks });
+            Ok(())
+        }
+
+        /// Update the membership proposal approval threshold.
+        #[pallet::call_index(6)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().writes(2))]
+        pub fn set_membership_approval_threshold(
+            origin: OriginFor<T>,
+            numerator: u32,
+            denominator: u32,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            Self::ensure_valid_threshold(numerator, denominator)?;
+            MembershipApprovalNumerator::<T>::put(numerator);
+            MembershipApprovalDenominator::<T>::put(denominator);
+            Self::deposit_event(Event::MembershipApprovalThresholdSet {
+                numerator,
+                denominator,
+            });
+            Ok(())
+        }
+
+        /// Update the suspension threshold.
+        #[pallet::call_index(7)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().writes(2))]
+        pub fn set_suspension_threshold(
+            origin: OriginFor<T>,
+            numerator: u32,
+            denominator: u32,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            Self::ensure_valid_threshold(numerator, denominator)?;
+            SuspensionNumerator::<T>::put(numerator);
+            SuspensionDenominator::<T>::put(denominator);
+            Self::deposit_event(Event::SuspensionThresholdSet {
+                numerator,
+                denominator,
+            });
             Ok(())
         }
     }
@@ -543,8 +693,15 @@ pub mod pallet {
             active_member_snapshot: u32,
         ) -> bool {
             let yes_votes = MembershipProposalYesCount::<T>::get(proposal_id);
-            // 80 % threshold at submit-time snapshot.
-            yes_votes.saturating_mul(5) >= active_member_snapshot.saturating_mul(4)
+            let n = MembershipApprovalNumerator::<T>::get();
+            let d = MembershipApprovalDenominator::<T>::get();
+            yes_votes.saturating_mul(d) >= active_member_snapshot.saturating_mul(n)
+        }
+
+        fn ensure_valid_threshold(numerator: u32, denominator: u32) -> DispatchResult {
+            ensure!(denominator != 0, Error::<T>::InvalidThreshold);
+            ensure!(numerator <= denominator, Error::<T>::InvalidThreshold);
+            Ok(())
         }
 
         fn approve_membership_proposal(
@@ -615,6 +772,30 @@ pub mod pallet {
             Members::<T>::get(account)
                 .map(|record| record.status == MemberStatus::Active)
                 .unwrap_or(false)
+        }
+    }
+
+    impl<T: Config> gaia_proposals::MembershipGovernance<OriginFor<T>, BlockNumberFor<T>>
+        for Pallet<T>
+    {
+        fn set_voting_period(origin: OriginFor<T>, blocks: BlockNumberFor<T>) -> DispatchResult {
+            Self::set_membership_voting_period(origin, blocks)
+        }
+
+        fn set_approval_threshold(
+            origin: OriginFor<T>,
+            numerator: u32,
+            denominator: u32,
+        ) -> DispatchResult {
+            Self::set_membership_approval_threshold(origin, numerator, denominator)
+        }
+
+        fn set_suspension_threshold(
+            origin: OriginFor<T>,
+            numerator: u32,
+            denominator: u32,
+        ) -> DispatchResult {
+            Self::set_suspension_threshold(origin, numerator, denominator)
         }
     }
 }

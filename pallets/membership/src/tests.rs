@@ -1,21 +1,258 @@
 use crate::mock::*;
 use crate::pallet::{
-    ActiveMemberCount, ActiveProposalByCandidate, MemberStatus, Members, MembershipProposalCount,
-    MembershipProposalNoCount, MembershipProposalStatus, MembershipProposalVotes,
-    MembershipProposalYesCount, MembershipProposals, SuspensionApprovalCount, SuspensionReason,
-    SuspensionVotes,
+    ActiveMemberCount, ActiveProposalByCandidate, MemberRecord, MemberStatus, Members,
+    MembershipProposalCount,
+    MembershipApprovalDenominator, MembershipApprovalNumerator, MembershipProposalNoCount,
+    MembershipProposalStatus, MembershipProposalVotes, MembershipProposalYesCount,
+    MembershipProposals, MembershipVotingPeriod, SuspensionApprovalCount, SuspensionDenominator,
+    SuspensionNumerator, SuspensionReason, SuspensionVotes,
 };
 use crate::{Error, Event, MembershipChecker};
-use frame_support::traits::{Get, OnInitialize};
 use frame_support::{assert_noop, assert_ok};
+use frame_support::traits::{GetStorageVersion, OnInitialize, StorageVersion};
+use sp_runtime::DispatchError;
 
 fn advance_past_membership_voting_period() {
-    let period = <<Test as crate::Config>::VotingPeriod as Get<u64>>::get();
+    let period = MembershipVotingPeriod::<Test>::get();
     for _ in 0..=period {
         let next = System::block_number() + 1;
         System::set_block_number(next);
         System::on_initialize(next);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Governance parameter setters
+// ---------------------------------------------------------------------------
+
+#[test]
+fn set_membership_voting_period_updates_storage() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Membership::set_membership_voting_period(
+            RuntimeOrigin::root(),
+            42
+        ));
+        assert_eq!(MembershipVotingPeriod::<Test>::get(), 42);
+        System::assert_last_event(Event::MembershipVotingPeriodSet { blocks: 42 }.into());
+    });
+}
+
+#[test]
+fn set_membership_approval_threshold_updates_storage() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Membership::set_membership_approval_threshold(
+            RuntimeOrigin::root(),
+            3,
+            4,
+        ));
+        assert_eq!(MembershipApprovalNumerator::<Test>::get(), 3);
+        assert_eq!(MembershipApprovalDenominator::<Test>::get(), 4);
+        System::assert_last_event(
+            Event::MembershipApprovalThresholdSet {
+                numerator: 3,
+                denominator: 4,
+            }
+            .into(),
+        );
+    });
+}
+
+#[test]
+fn set_suspension_threshold_updates_storage() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Membership::set_suspension_threshold(
+            RuntimeOrigin::root(),
+            2,
+            3,
+        ));
+        assert_eq!(SuspensionNumerator::<Test>::get(), 2);
+        assert_eq!(SuspensionDenominator::<Test>::get(), 3);
+        System::assert_last_event(
+            Event::SuspensionThresholdSet {
+                numerator: 2,
+                denominator: 3,
+            }
+            .into(),
+        );
+    });
+}
+
+#[test]
+fn set_threshold_rejects_zero_denominator() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Membership::set_membership_approval_threshold(RuntimeOrigin::root(), 1, 0),
+            Error::<Test>::InvalidThreshold
+        );
+        assert_noop!(
+            Membership::set_suspension_threshold(RuntimeOrigin::root(), 1, 0),
+            Error::<Test>::InvalidThreshold
+        );
+    });
+}
+
+#[test]
+fn set_threshold_rejects_numerator_greater_than_denominator() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Membership::set_membership_approval_threshold(RuntimeOrigin::root(), 5, 4),
+            Error::<Test>::InvalidThreshold
+        );
+        assert_noop!(
+            Membership::set_suspension_threshold(RuntimeOrigin::root(), 2, 1),
+            Error::<Test>::InvalidThreshold
+        );
+    });
+}
+
+#[test]
+fn membership_approval_uses_stored_threshold() {
+    new_test_ext().execute_with(|| {
+        let dave_record = MemberRecord::<Test> {
+            name: bounded_name(b"Dave"),
+            status: MemberStatus::Active,
+            joined_at: System::block_number(),
+        };
+        let extra_record = MemberRecord::<Test> {
+            name: bounded_name(b"Extra"),
+            status: MemberStatus::Active,
+            joined_at: System::block_number(),
+        };
+        Members::<Test>::insert(DAVE, dave_record);
+        Members::<Test>::insert(6u64, extra_record);
+        ActiveMemberCount::<Test>::put(5);
+
+        assert_ok!(Membership::propose_member(
+            RuntimeOrigin::signed(ALICE),
+            7u64,
+            bounded_name(b"Candidate"),
+        ));
+        let proposal_id = MembershipProposalCount::<Test>::get();
+
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(ALICE),
+            proposal_id,
+            true,
+        ));
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(BOB),
+            proposal_id,
+            true,
+        ));
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(CHARLIE),
+            proposal_id,
+            true,
+        ));
+        assert!(Members::<Test>::get(7u64).is_none());
+
+        assert_ok!(Membership::vote_on_candidate(
+            RuntimeOrigin::signed(6u64),
+            proposal_id,
+            true,
+        ));
+        assert_eq!(Members::<Test>::get(7u64).unwrap().status, MemberStatus::Active);
+    });
+}
+
+#[test]
+fn suspension_threshold_default_requires_unanimity() {
+    new_test_ext().execute_with(|| {
+        assert_eq!(SuspensionNumerator::<Test>::get(), 1);
+        assert_eq!(SuspensionDenominator::<Test>::get(), 1);
+
+        assert_ok!(Membership::vote_suspend_member(
+            RuntimeOrigin::signed(BOB),
+            ALICE,
+            true,
+        ));
+        assert_eq!(Members::<Test>::get(ALICE).unwrap().status, MemberStatus::Active);
+
+        assert_ok!(Membership::vote_suspend_member(
+            RuntimeOrigin::signed(CHARLIE),
+            ALICE,
+            true,
+        ));
+        assert_eq!(
+            Members::<Test>::get(ALICE).unwrap().status,
+            MemberStatus::Suspended
+        );
+    });
+}
+
+#[test]
+fn non_root_cannot_call_setters() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Membership::set_membership_voting_period(RuntimeOrigin::signed(ALICE), 9),
+            DispatchError::BadOrigin
+        );
+        assert_noop!(
+            Membership::set_membership_approval_threshold(RuntimeOrigin::signed(ALICE), 4, 5),
+            DispatchError::BadOrigin
+        );
+        assert_noop!(
+            Membership::set_suspension_threshold(RuntimeOrigin::signed(ALICE), 1, 1),
+            DispatchError::BadOrigin
+        );
+    });
+}
+
+#[test]
+fn migration_backfills_missing_membership_parameter_keys() {
+    new_test_ext().execute_with(|| {
+        MembershipVotingPeriod::<Test>::kill();
+        MembershipApprovalNumerator::<Test>::kill();
+        MembershipApprovalDenominator::<Test>::kill();
+        SuspensionNumerator::<Test>::kill();
+        SuspensionDenominator::<Test>::kill();
+
+        StorageVersion::new(0).put::<Membership>();
+        let _ = <Membership as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        assert_eq!(MembershipVotingPeriod::<Test>::get(), 100_800);
+        assert_eq!(MembershipApprovalNumerator::<Test>::get(), 4);
+        assert_eq!(MembershipApprovalDenominator::<Test>::get(), 5);
+        assert_eq!(SuspensionNumerator::<Test>::get(), 1);
+        assert_eq!(SuspensionDenominator::<Test>::get(), 1);
+        assert_eq!(
+            <Membership as GetStorageVersion>::on_chain_storage_version(),
+            StorageVersion::new(1)
+        );
+    });
+}
+
+#[test]
+fn migration_preserves_existing_membership_parameter_values() {
+    new_test_ext().execute_with(|| {
+        MembershipVotingPeriod::<Test>::put(33);
+        MembershipApprovalNumerator::<Test>::put(3);
+        MembershipApprovalDenominator::<Test>::put(4);
+        SuspensionNumerator::<Test>::put(2);
+        SuspensionDenominator::<Test>::put(3);
+
+        StorageVersion::new(0).put::<Membership>();
+        let _ = <Membership as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        assert_eq!(MembershipVotingPeriod::<Test>::get(), 33);
+        assert_eq!(MembershipApprovalNumerator::<Test>::get(), 3);
+        assert_eq!(MembershipApprovalDenominator::<Test>::get(), 4);
+        assert_eq!(SuspensionNumerator::<Test>::get(), 2);
+        assert_eq!(SuspensionDenominator::<Test>::get(), 3);
+    });
+}
+
+#[test]
+fn migration_is_idempotent_after_storage_version_update() {
+    new_test_ext().execute_with(|| {
+        StorageVersion::new(0).put::<Membership>();
+        let _ = <Membership as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        MembershipVotingPeriod::<Test>::put(91);
+        let _ = <Membership as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        assert_eq!(MembershipVotingPeriod::<Test>::get(), 91);
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -68,7 +305,7 @@ fn is_active_member_returns_false_for_non_member() {
 fn propose_member_creates_active_proposal_with_snapshot_and_deadline() {
     new_test_ext().execute_with(|| {
         let now = System::block_number();
-        let period = <<Test as crate::Config>::VotingPeriod as Get<u64>>::get();
+        let period = MembershipVotingPeriod::<Test>::get();
 
         assert_ok!(Membership::propose_member(
             RuntimeOrigin::signed(ALICE),

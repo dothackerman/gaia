@@ -6,8 +6,8 @@ Before any action:
 1. Read `AGENTS.md` in full.
 2. Read `docs/current-state.md` in full.
 3. Read `docs/plans/governance-on-chain.md` for full milestone context.
-4. Read `docs/decisions/008-governance-parameter-storage.md` (written in Wave 1A).
-5. Read `docs/decisions/009-governance-membership-parameter-storage.md` (Wave 1B).
+4. Read `docs/decisions/009-governance-proposal-parameter-storage.md` (Wave 1A).
+5. Read `docs/decisions/010-governance-membership-parameter-storage.md` (Wave 1B).
 
 Do not write any code until all five are loaded.
 
@@ -17,6 +17,9 @@ Do not write any code until all five are loaded.
 
 **Both Wave 1A and Wave 1B PRs must be merged into `main` before this agent starts.**
 Run `git pull origin main` first.
+
+**Wave 1 stabilization gate:** runtime-upgrade backfill migrations for governance
+parameter storage must be merged before this wave starts.
 
 ---
 
@@ -33,7 +36,7 @@ Run `git pull origin main` first.
 
 **Branch:** create from `main` as `codex/governance-wave2-action-enum`
 
-**Bump `spec_version`** in `runtime/src/lib.rs`: 101 → 102.
+**Bump `spec_version`** in `runtime/src/lib.rs`: 102 → 103.
 Bump `transaction_version` if the extrinsic encoding of `submit_proposal` changes
 (it will, because the signature changes).
 
@@ -253,7 +256,8 @@ Regenerate `tester-cli/artifacts/gaia.scale` after `cargo build`.
 
 ## ADR required
 
-Create `docs/decisions/010-generalized-proposal-execution.md`.
+Create `docs/decisions/<next>-generalized-proposal-execution.md`.
+Expected number is ADR-011 if no additional ADRs land before merge.
 
 Title: "Generalized proposal execution with GovernanceAction enum"
 

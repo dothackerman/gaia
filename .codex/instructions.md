@@ -62,13 +62,23 @@ After every cargo command that produces output, classify all warnings before pro
 - unused imports
 - clippy suggestions with a clear `help:` line
 
-**Log to `docs/current-state.md`** (do not fix, just record):
+**Log upstream warnings** (do not fix, just record):
 - upstream dependency warnings (code you do not own)
 - future Rust rejection warnings on external crates
 - architecture or cycle detection output from the overseer
+  - In single-agent or merger sessions: append to `docs/current-state.md`.
+  - In parallel worktree sessions: append to `docs/agent-state/<your-branch-slug>.md`
+    under an `## Upstream Warnings` section for merger ingestion.
 
-**Create ADR in `docs/decisions/`** (next available number):
+**Create ADR for required future action**:
 - new build target recommendations (e.g. wasm32v1-none migration)
 - any warning that implies a required future action on GAIA code
+  - In single-agent or merger sessions: create numbered ADRs in `docs/decisions/`.
+  - In parallel worktree sessions: create draft ADRs in `docs/decisions/draft/`
+    (no sequential number claim).
 
-**Never silently ignore a warning.** Every warning is either fixed, logged, or recorded as a decision. If classification is ambiguous, log it to `current-state.md` and flag it to the operator.
+**Never silently ignore a warning.** Every warning is either fixed, logged, or
+recorded as a decision. If classification is ambiguous, record it in the active
+session state file (`docs/current-state.md` in serial/merger sessions, or
+`docs/agent-state/<your-branch-slug>.md` in parallel sessions) and flag it to
+the operator.

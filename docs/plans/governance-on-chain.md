@@ -1,7 +1,7 @@
 # Milestone: True On-Chain Governance
 
 > **Status:** Planned — not yet implemented.
-> **Last updated:** 2026-03-07
+> **Last updated:** 2026-03-08
 > **Prerequisite reading:** `AGENTS.md`, `docs/current-state.md`, `docs/domain-model.md`
 
 ---
@@ -145,18 +145,22 @@ Mismatched class → `Error::ProposalClassMismatch`.
 
 ```
 Wave 1 (parallel):
-  Agent A  →  docs: .claude/agents/governance-wave1a-proposal-params.md
-  Agent B  →  docs: .claude/agents/governance-wave1b-membership-params.md
+  Agent A  →  docs: .codex/agents/governance-wave1a-proposal-params.md
+  Agent B  →  docs: .codex/agents/governance-wave1b-membership-params.md
+
+Wave 1 stabilization (serial, required before Wave 2):
+  - Backfill migrations for new `StorageValue` governance keys on runtime upgrade
+    (protects in-place upgrades from zero-default behavior).
 
 Wave 2 (sequential, after Wave 1 merged):
-  Agent C  →  docs: .claude/agents/governance-wave2-action-enum.md
+  Agent C  →  docs: .codex/agents/governance-wave2-action-enum.md
 
 Wave 3 (parallel, after Wave 2 merged):
-  Agent D  →  docs: .claude/agents/governance-wave3a-time-locks.md
-  Agent E  →  docs: .claude/agents/governance-wave3b-proposal-classes.md
+  Agent D  →  docs: .codex/agents/governance-wave3a-time-locks.md
+  Agent E  →  docs: .codex/agents/governance-wave3b-proposal-classes.md
 
 Wave 4 (sequential, after Wave 3 merged):
-  Agent F  →  docs: .claude/agents/governance-wave4-runtime-upgrade.md
+  Agent F  →  docs: .codex/agents/governance-wave4-runtime-upgrade.md
 ```
 
 Dependency graph:
@@ -178,14 +182,14 @@ main
 
 ## ADR Sequence
 
-| ADR # | Title | Wave | Agent |
+| Status | Title | Wave | Numbering guidance |
 |---|---|---|---|
-| 008 | On-chain storage for proposal governance parameters | 1 | A |
-| 009 | On-chain storage for membership governance parameters | 1 | B |
-| 010 | Generalized proposal execution with GovernanceAction enum | 2 | C |
-| 011 | Mandatory execution delay after proposal approval | 3 | D |
-| 012 | Three-tier proposal class system for meta-governance | 3 | E |
-| 013 | Runtime upgrade via Constitutional-class governance proposal | 4 | F |
+| Implemented | On-chain storage for proposal governance parameters | 1 | ADR-009 |
+| Implemented | On-chain storage for membership governance parameters | 1 | ADR-010 |
+| Planned | Generalized proposal execution with GovernanceAction enum | 2 | Next sequential ADR at merge time (expected ADR-011 if no new ADRs land first) |
+| Planned | Mandatory execution delay after proposal approval | 3 | Parallel wave: author as ADR draft, merger promotes to next sequential ADR |
+| Planned | Three-tier proposal class system for meta-governance | 3 | Parallel wave: author as ADR draft, merger promotes to next sequential ADR |
+| Planned | Runtime upgrade via Constitutional-class governance proposal | 4 | Next sequential ADR at merge time after Wave 3 promotions |
 
 ---
 
@@ -206,5 +210,6 @@ GovernanceOrigin cannot override these. They are enforced at pallet level, below
 | After wave | spec_version |
 |---|---|
 | Before this milestone | 101 |
-| Wave 2 (Agent C) | 102 |
-| Wave 4 (Agent F) | 103 |
+| Wave 1 stabilization (migration backfill) | 102 |
+| Wave 2 (Agent C) | 103 |
+| Wave 4 (Agent F) | 104 |

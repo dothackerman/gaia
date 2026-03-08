@@ -6,7 +6,9 @@ Before any action:
 1. Read `AGENTS.md` in full.
 2. Read `docs/current-state.md` in full.
 3. Read `docs/plans/governance-on-chain.md` for full milestone context.
-4. Read all ADRs 008–012 (Waves 1–3 decisions) in `docs/decisions/`.
+4. Read all merged governance ADRs from Waves 1–3 in `docs/decisions/`
+   (proposal storage, membership storage, generalized execution, time-locks,
+   proposal classes).
 
 Do not write any code until all are loaded.
 
@@ -20,7 +22,7 @@ Run `git pull origin main` first.
 **Branch:** create from `main` as `codex/governance-wave4-runtime-upgrade`
 
 **Bump `spec_version`** in `runtime/src/lib.rs` to one above whatever Wave 2
-set (Wave 2 set 102, so this wave sets 103).
+set (Wave 2 sets 103, so this wave sets 104).
 Bump `transaction_version` if extrinsic encoding of `submit_proposal` changes
 (it does: new `UpgradeRuntime` variant added to the action enum).
 
@@ -166,7 +168,8 @@ Regenerate `tester-cli/artifacts/gaia.scale` after `cargo build`.
 
 ## ADR required
 
-Create `docs/decisions/013-runtime-upgrade-governance.md`.
+Create `docs/decisions/<next>-runtime-upgrade-governance.md`.
+Expected number is ADR-014 if no additional ADRs land before Wave 4 merge.
 
 Title: "Runtime upgrade via Constitutional-class governance proposal"
 

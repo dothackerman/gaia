@@ -18,6 +18,12 @@ Before any other action:
 
 Do not proceed until both files are loaded as context.
 
+Parallel-session override (AGENTS.md §§13-14):
+- In parallel worktree sessions, do not edit `docs/current-state.md`.
+- Write session outcomes to `docs/agent-state/<branch-slug>.md`.
+- In parallel worktree sessions, create ADR drafts in `docs/decisions/draft/`
+  (no sequential number claim). Merger promotes them later.
+
 ---
 
 ## Phase 1 — Detection and alert
@@ -127,10 +133,15 @@ tree against the RustSec advisory database.
 
 ## Phase 6 — Documentation
 
-1. Update `docs/current-state.md` to reflect:
-   - The upgraded dependency and its new version.
-   - The new `spec_version` and `transaction_version`.
-2. Create a new ADR in `docs/decisions/` with the next available number.
+1. Record documentation updates for the upgraded dependency and runtime versions:
+   - Serial/merger session: update `docs/current-state.md`.
+   - Parallel worktree session: write the same details to
+     `docs/agent-state/<branch-slug>.md` for merger ingestion.
+2. Create an ADR describing the security upgrade:
+   - Serial/merger session: create numbered ADR in `docs/decisions/` with the
+     next available number.
+   - Parallel worktree session: create ADR draft in `docs/decisions/draft/`
+     (no sequential number claim).
    The ADR must document:
    - What was upgraded (crate name, old version → new version).
    - The CVE reference or reason for the upgrade.
