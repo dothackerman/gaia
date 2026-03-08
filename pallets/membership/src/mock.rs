@@ -1,6 +1,6 @@
 use crate as gaia_membership;
 use crate::pallet::MAX_NAME_LEN;
-use frame_support::derive_impl;
+use frame_support::{derive_impl, parameter_types, PalletId};
 use sp_runtime::{BoundedVec, BuildStorage};
 
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -34,8 +34,13 @@ impl frame_system::Config for Test {
 	type Block = Block;
 }
 
+parameter_types! {
+	pub const GovernancePalletId: PalletId = PalletId(*b"ga/govn0");
+}
+
 impl gaia_membership::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
+	type GovernancePalletId = GovernancePalletId;
 }
 
 /// Genesis accounts used across all tests.

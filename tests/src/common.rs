@@ -155,8 +155,11 @@ pub fn submit_default_proposal() -> u32 {
         RuntimeOrigin::signed(alice()),
         bounded_title(b"t"),
         bounded_desc(b"d"),
-        100,
-        10
+        gaia_proposals::pallet::ProposalClass::Standard,
+        gaia_proposals::pallet::GovernanceAction::DisburseToAccount {
+            recipient: alice(),
+            amount: 100,
+        }
     ));
     gaia_proposals::pallet::ProposalCount::<Runtime>::get()
 }

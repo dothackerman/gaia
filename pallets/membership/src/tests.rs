@@ -9,8 +9,8 @@ use crate::pallet::{
 };
 use crate::{Error, Event, MembershipChecker};
 use frame_support::{assert_noop, assert_ok};
+use frame_support::sp_runtime::traits::AccountIdConversion;
 use frame_support::traits::{GetStorageVersion, OnInitialize, StorageVersion};
-use sp_runtime::DispatchError;
 
 fn advance_past_membership_voting_period() {
     let period = MembershipVotingPeriod::<Test>::get();
@@ -21,6 +21,10 @@ fn advance_past_membership_voting_period() {
     }
 }
 
+fn governance_origin() -> RuntimeOrigin {
+    RuntimeOrigin::signed(GovernancePalletId::get().into_account_truncating())
+}
+
 // ---------------------------------------------------------------------------
 // Governance parameter setters
 // ---------------------------------------------------------------------------
@@ -29,7 +33,7 @@ fn advance_past_membership_voting_period() {
 fn set_membership_voting_period_updates_storage() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::set_membership_voting_period(
-            RuntimeOrigin::root(),
+            governance_origin(),
             42
         ));
         assert_eq!(MembershipVotingPeriod::<Test>::get(), 42);
@@ -41,7 +45,7 @@ fn set_membership_voting_period_updates_storage() {
 fn set_membership_approval_threshold_updates_storage() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::set_membership_approval_threshold(
-            RuntimeOrigin::root(),
+            governance_origin(),
             3,
             4,
         ));
@@ -61,7 +65,7 @@ fn set_membership_approval_threshold_updates_storage() {
 fn set_suspension_threshold_updates_storage() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::set_suspension_threshold(
-            RuntimeOrigin::root(),
+            governance_origin(),
             2,
             3,
         ));
@@ -81,11 +85,11 @@ fn set_suspension_threshold_updates_storage() {
 fn set_threshold_rejects_zero_denominator() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            Membership::set_membership_approval_threshold(RuntimeOrigin::root(), 1, 0),
+            Membership::set_membership_approval_threshold(governance_origin(), 1, 0),
             Error::<Test>::InvalidThreshold
         );
         assert_noop!(
-            Membership::set_suspension_threshold(RuntimeOrigin::root(), 1, 0),
+            Membership::set_suspension_threshold(governance_origin(), 1, 0),
             Error::<Test>::InvalidThreshold
         );
     });
@@ -95,11 +99,11 @@ fn set_threshold_rejects_zero_denominator() {
 fn set_threshold_rejects_numerator_greater_than_denominator() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            Membership::set_membership_approval_threshold(RuntimeOrigin::root(), 5, 4),
+            Membership::set_membership_approval_threshold(governance_origin(), 5, 4),
             Error::<Test>::InvalidThreshold
         );
         assert_noop!(
-            Membership::set_suspension_threshold(RuntimeOrigin::root(), 2, 1),
+            Membership::set_suspension_threshold(governance_origin(), 2, 1),
             Error::<Test>::InvalidThreshold
         );
     });
@@ -181,19 +185,19 @@ fn suspension_threshold_default_requires_unanimity() {
 }
 
 #[test]
-fn non_root_cannot_call_setters() {
+fn non_governance_origin_cannot_call_setters() {
     new_test_ext().execute_with(|| {
         assert_noop!(
             Membership::set_membership_voting_period(RuntimeOrigin::signed(ALICE), 9),
-            DispatchError::BadOrigin
+            Error::<Test>::NotGovernanceOrigin
         );
         assert_noop!(
             Membership::set_membership_approval_threshold(RuntimeOrigin::signed(ALICE), 4, 5),
-            DispatchError::BadOrigin
+            Error::<Test>::NotGovernanceOrigin
         );
         assert_noop!(
             Membership::set_suspension_threshold(RuntimeOrigin::signed(ALICE), 1, 1),
-            DispatchError::BadOrigin
+            Error::<Test>::NotGovernanceOrigin
         );
     });
 }

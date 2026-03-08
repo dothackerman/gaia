@@ -68,7 +68,16 @@ fn suspended_member_cannot_submit_proposal() {
     new_test_ext().execute_with(|| {
         assert_ok!(Membership::suspend_self(RuntimeOrigin::signed(alice())));
         assert_noop!(
-            Proposals::submit_proposal(RuntimeOrigin::signed(alice()), bounded_title(b"t"), bounded_desc(b"d"), 100, 10),
+            Proposals::submit_proposal(
+                RuntimeOrigin::signed(alice()),
+                bounded_title(b"t"),
+                bounded_desc(b"d"),
+                gaia_proposals::pallet::ProposalClass::Standard,
+                gaia_proposals::pallet::GovernanceAction::DisburseToAccount {
+                    recipient: alice(),
+                    amount: 100,
+                }
+            ),
             gaia_proposals::Error::<Runtime>::NotActiveMember
         );
     });
@@ -134,8 +143,11 @@ fn newly_admitted_member_can_submit_proposal() {
             RuntimeOrigin::signed(dave()),
             bounded_title(b"Dave's idea"),
             bounded_desc(b"Dave proposes something"),
-            50,
-            20
+            gaia_proposals::pallet::ProposalClass::Standard,
+            gaia_proposals::pallet::GovernanceAction::DisburseToAccount {
+                recipient: dave(),
+                amount: 50,
+            }
         ));
     });
 }
@@ -182,9 +194,8 @@ fn treasury_balance_never_goes_negative_via_proposal() {
 // Suspended organizer ↔ proposal execution
 // ---------------------------------------------------------------------------
 
-/// `execute_proposal` checks `NotOrganizer` but does NOT check
-/// `is_active_member`. A suspended organizer can still execute their
-/// approved proposal. This test documents that behaviour.
+/// `execute_proposal` does not check `is_active_member`. A suspended organizer
+/// can still execute their approved proposal.
 #[test]
 fn suspended_organizer_can_execute_approved_proposal() {
     new_test_ext().execute_with(|| {

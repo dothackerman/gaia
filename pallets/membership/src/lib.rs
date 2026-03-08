@@ -47,8 +47,10 @@ pub trait MembershipChecker<AccountId> {
 pub mod pallet {
     use super::*;
     use frame_support::pallet_prelude::*;
+    use frame_support::sp_runtime::traits::AccountIdConversion;
     use frame_support::traits::StorageVersion;
     use frame_support::sp_runtime::{traits::SaturatedConversion, Saturating};
+    use frame_support::PalletId;
     use frame_system::pallet_prelude::*;
 
     /// Maximum length of a member name in bytes.
@@ -123,6 +125,9 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         /// The overarching runtime event type.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        /// PalletId-derived sovereign account used as GovernanceOrigin.
+        #[pallet::constant]
+        type GovernancePalletId: Get<PalletId>;
     }
 
     // ---------------------------------------------------------------------------
@@ -397,6 +402,8 @@ pub mod pallet {
         CannotSuspendSelf,
         /// Invalid threshold fraction.
         InvalidThreshold,
+        /// Setter was called by an origin other than the governance account.
+        NotGovernanceOrigin,
     }
 
     // ---------------------------------------------------------------------------
@@ -628,7 +635,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             blocks: BlockNumberFor<T>,
         ) -> DispatchResult {
-            ensure_root(origin)?;
+            Self::ensure_governance_origin(origin)?;
             MembershipVotingPeriod::<T>::put(blocks);
             Self::deposit_event(Event::MembershipVotingPeriodSet { blocks });
             Ok(())
@@ -642,7 +649,7 @@ pub mod pallet {
             numerator: u32,
             denominator: u32,
         ) -> DispatchResult {
-            ensure_root(origin)?;
+            Self::ensure_governance_origin(origin)?;
             Self::ensure_valid_threshold(numerator, denominator)?;
             MembershipApprovalNumerator::<T>::put(numerator);
             MembershipApprovalDenominator::<T>::put(denominator);
@@ -661,7 +668,7 @@ pub mod pallet {
             numerator: u32,
             denominator: u32,
         ) -> DispatchResult {
-            ensure_root(origin)?;
+            Self::ensure_governance_origin(origin)?;
             Self::ensure_valid_threshold(numerator, denominator)?;
             SuspensionNumerator::<T>::put(numerator);
             SuspensionDenominator::<T>::put(denominator);
@@ -701,6 +708,13 @@ pub mod pallet {
         fn ensure_valid_threshold(numerator: u32, denominator: u32) -> DispatchResult {
             ensure!(denominator != 0, Error::<T>::InvalidThreshold);
             ensure!(numerator <= denominator, Error::<T>::InvalidThreshold);
+            Ok(())
+        }
+
+        fn ensure_governance_origin(origin: OriginFor<T>) -> DispatchResult {
+            let caller = ensure_signed(origin)?;
+            let expected = T::GovernancePalletId::get().into_account_truncating();
+            ensure!(caller == expected, Error::<T>::NotGovernanceOrigin);
             Ok(())
         }
 

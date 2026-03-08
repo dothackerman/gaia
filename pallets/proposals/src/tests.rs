@@ -12,13 +12,15 @@ use crate::pallet::{
     ProposalYesCount,
     // Aliased to avoid shadowing the pallet type alias `Proposals` from mock.
     Proposals as ProposalStorage,
+    GovernanceAction,
+    ProposalClass,
     StandardApprovalDenominator,
     StandardApprovalNumerator,
 };
 use crate::{Error, Event};
 use frame_support::{assert_noop, assert_ok};
+use frame_support::sp_runtime::traits::AccountIdConversion;
 use frame_support::traits::{GetStorageVersion, StorageVersion};
-use sp_runtime::DispatchError;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -38,8 +40,11 @@ fn submit_default(origin: u64) -> u32 {
         RuntimeOrigin::signed(origin),
         bounded_title(b"Fund the festival"),
         bounded_desc(b"A community festival needs funding."),
-        100u64,
-        50u64,
+        ProposalClass::Standard,
+        GovernanceAction::DisburseToAccount {
+            recipient: origin,
+            amount: 100u64,
+        },
     ));
     crate::pallet::ProposalCount::<Test>::get()
 }
@@ -51,6 +56,10 @@ fn advance_past_voting() {
     System::set_block_number(period + 2);
 }
 
+fn governance_origin() -> RuntimeOrigin {
+    RuntimeOrigin::signed(GovernancePalletId::get().into_account_truncating())
+}
+
 // ---------------------------------------------------------------------------
 // Governance parameter setters
 // ---------------------------------------------------------------------------
@@ -59,7 +68,7 @@ fn advance_past_voting() {
 fn set_proposal_voting_period_updates_storage() {
     new_test_ext().execute_with(|| {
         assert_ok!(Proposals::set_proposal_voting_period(
-            RuntimeOrigin::root(),
+            governance_origin(),
             42
         ));
         assert_eq!(ProposalVotingPeriod::<Test>::get(), 42);
@@ -70,7 +79,7 @@ fn set_proposal_voting_period_updates_storage() {
 #[test]
 fn set_execution_delay_updates_storage() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Proposals::set_execution_delay(RuntimeOrigin::root(), 7));
+        assert_ok!(Proposals::set_execution_delay(governance_origin(), 7));
         assert_eq!(ExecutionDelay::<Test>::get(), 7);
         System::assert_last_event(Event::ExecutionDelaySet { blocks: 7 }.into());
     });
@@ -80,7 +89,7 @@ fn set_execution_delay_updates_storage() {
 fn set_standard_threshold_updates_storage() {
     new_test_ext().execute_with(|| {
         assert_ok!(Proposals::set_standard_approval_threshold(
-            RuntimeOrigin::root(),
+            governance_origin(),
             3,
             4
         ));
@@ -88,7 +97,7 @@ fn set_standard_threshold_updates_storage() {
         assert_eq!(StandardApprovalDenominator::<Test>::get(), 4);
 
         assert_ok!(Proposals::set_governance_approval_threshold(
-            RuntimeOrigin::root(),
+            governance_origin(),
             4,
             5
         ));
@@ -96,7 +105,7 @@ fn set_standard_threshold_updates_storage() {
         assert_eq!(GovernanceApprovalDenominator::<Test>::get(), 5);
 
         assert_ok!(Proposals::set_constitutional_approval_threshold(
-            RuntimeOrigin::root(),
+            governance_origin(),
             9,
             10
         ));
@@ -109,7 +118,7 @@ fn set_standard_threshold_updates_storage() {
 fn set_threshold_rejects_zero_denominator() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            Proposals::set_standard_approval_threshold(RuntimeOrigin::root(), 1, 0),
+            Proposals::set_standard_approval_threshold(governance_origin(), 1, 0),
             Error::<Test>::InvalidThreshold
         );
     });
@@ -119,34 +128,34 @@ fn set_threshold_rejects_zero_denominator() {
 fn set_threshold_rejects_numerator_greater_than_denominator() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            Proposals::set_standard_approval_threshold(RuntimeOrigin::root(), 3, 2),
+            Proposals::set_standard_approval_threshold(governance_origin(), 3, 2),
             Error::<Test>::InvalidThreshold
         );
     });
 }
 
 #[test]
-fn non_root_cannot_call_setters() {
+fn non_governance_origin_cannot_call_setters() {
     new_test_ext().execute_with(|| {
         assert_noop!(
             Proposals::set_proposal_voting_period(RuntimeOrigin::signed(ALICE), 55),
-            DispatchError::BadOrigin
+            Error::<Test>::NotGovernanceOrigin
         );
         assert_noop!(
             Proposals::set_execution_delay(RuntimeOrigin::signed(ALICE), 2),
-            DispatchError::BadOrigin
+            Error::<Test>::NotGovernanceOrigin
         );
         assert_noop!(
             Proposals::set_standard_approval_threshold(RuntimeOrigin::signed(ALICE), 1, 2),
-            DispatchError::BadOrigin
+            Error::<Test>::NotGovernanceOrigin
         );
         assert_noop!(
             Proposals::set_governance_approval_threshold(RuntimeOrigin::signed(ALICE), 4, 5),
-            DispatchError::BadOrigin
+            Error::<Test>::NotGovernanceOrigin
         );
         assert_noop!(
             Proposals::set_constitutional_approval_threshold(RuntimeOrigin::signed(ALICE), 9, 10),
-            DispatchError::BadOrigin
+            Error::<Test>::NotGovernanceOrigin
         );
     });
 }
@@ -252,8 +261,11 @@ fn submit_proposal_fails_for_non_member() {
                 RuntimeOrigin::signed(DAVE),
                 bounded_title(b"Festival"),
                 bounded_desc(b"desc"),
-                50u64,
-                10u64,
+                ProposalClass::Standard,
+                GovernanceAction::DisburseToAccount {
+                    recipient: DAVE,
+                    amount: 50u64,
+                },
             ),
             Error::<Test>::NotActiveMember
         );
@@ -448,8 +460,6 @@ fn execute_proposal_succeeds_for_approved() {
         System::assert_last_event(
             Event::ProposalExecuted {
                 proposal_id: id,
-                organizer: ALICE,
-                amount: 100,
             }
             .into(),
         );
@@ -461,7 +471,7 @@ fn execute_proposal_succeeds_for_approved() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn execute_fails_for_non_organizer() {
+fn execute_allows_non_organizer() {
     new_test_ext().execute_with(|| {
         let id = submit_default(ALICE);
         assert_ok!(Proposals::vote_on_proposal(
@@ -476,10 +486,7 @@ fn execute_fails_for_non_organizer() {
         ));
         advance_past_voting();
         assert_ok!(Proposals::tally_proposal(RuntimeOrigin::signed(ALICE), id));
-        assert_noop!(
-            Proposals::execute_proposal(RuntimeOrigin::signed(BOB), id),
-            Error::<Test>::NotOrganizer
-        );
+        assert_ok!(Proposals::execute_proposal(RuntimeOrigin::signed(BOB), id));
     });
 }
 
