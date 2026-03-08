@@ -111,6 +111,7 @@ impl gaia_proposals::MembershipGovernance<RuntimeOrigin, u64> for MockMembership
 
 parameter_types! {
     pub const GovernancePalletId: PalletId = PalletId(*b"ga/govn0");
+    pub const MaxRuntimeCodeSize: u32 = 1024;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +125,7 @@ impl gaia_proposals::Config for Test {
     type Treasury = MockTreasury;
     type MembershipGovernance = MockMembershipGovernance;
     type GovernancePalletId = GovernancePalletId;
+    type MaxRuntimeCodeSize = MaxRuntimeCodeSize;
 }
 
 // ---------------------------------------------------------------------------

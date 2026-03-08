@@ -17,8 +17,10 @@ impl gaia_proposals::pallet::Config for Runtime {
     type Treasury = gaia_treasury::Pallet<Runtime>;
     type MembershipGovernance = gaia_membership::Pallet<Runtime>;
     type GovernancePalletId = GovernancePalletId;
+    type MaxRuntimeCodeSize = MaxRuntimeCodeSize;
 }
 
 parameter_types! {
     pub const GovernancePalletId: PalletId = PalletId(*b"ga/govn0");
+    pub const MaxRuntimeCodeSize: u32 = 10 * 1024 * 1024;
 }

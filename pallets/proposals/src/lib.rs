@@ -65,6 +65,8 @@ pub mod pallet {
     use frame_support::PalletId;
     use frame_system::pallet_prelude::*;
     use frame_system::RawOrigin;
+    use scale_info::prelude::vec::Vec;
+    use sp_io::hashing::blake2_256;
 
     /// Maximum length of a proposal title in bytes.
     pub const MAX_TITLE_LEN: u32 = 128;
@@ -162,6 +164,9 @@ pub mod pallet {
             numerator: u32,
             denominator: u32,
         },
+        UpgradeRuntime {
+            code_hash: [u8; 32],
+        },
     }
 
     /// On-chain record for a spending proposal.
@@ -214,6 +219,10 @@ pub mod pallet {
         /// PalletId-derived sovereign account used as GovernanceOrigin.
         #[pallet::constant]
         type GovernancePalletId: Get<PalletId>;
+
+        /// Maximum size accepted for uploaded runtime code blobs.
+        #[pallet::constant]
+        type MaxRuntimeCodeSize: Get<u32>;
     }
 
     // ---------------------------------------------------------------------------
@@ -282,6 +291,11 @@ pub mod pallet {
     /// Denominator for constitutional proposal approval threshold.
     #[pallet::storage]
     pub type ConstitutionalApprovalDenominator<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+    /// Runtime code blob pending governance execution.
+    #[pallet::storage]
+    pub type PendingRuntimeCode<T: Config> =
+        StorageValue<_, BoundedVec<u8, T::MaxRuntimeCodeSize>, OptionQuery>;
 
     // ---------------------------------------------------------------------------
     // Genesis
@@ -443,6 +457,13 @@ pub mod pallet {
         GovernanceThresholdSet { numerator: u32, denominator: u32 },
         /// Constitutional proposal approval threshold was updated.
         ConstitutionalThresholdSet { numerator: u32, denominator: u32 },
+        /// Runtime code blob was uploaded for governance execution.
+        RuntimeCodeUploaded {
+            uploader: T::AccountId,
+            code_hash: [u8; 32],
+        },
+        /// Runtime upgrade action executed successfully.
+        RuntimeUpgradeExecuted { code_hash: [u8; 32] },
     }
 
     // ---------------------------------------------------------------------------
@@ -467,8 +488,6 @@ pub mod pallet {
         ProposalNotApproved,
         /// The proposal has already been executed. (I-3)
         ProposalAlreadyExecuted,
-        /// The caller is not the organizer of the proposal.
-        NotOrganizer,
         /// The supplied title exceeds the maximum allowed length.
         TitleTooLong,
         /// The supplied description exceeds the maximum allowed length.
@@ -483,6 +502,12 @@ pub mod pallet {
         ExecutionTooEarly,
         /// Proposal was marked approved without an approval block marker.
         ProposalNotYetApproved,
+        /// Runtime upgrade requested but no code blob is pending.
+        NoPendingRuntimeCode,
+        /// Pending runtime code hash does not match proposal hash.
+        RuntimeCodeHashMismatch,
+        /// Runtime code blob exceeds configured maximum size.
+        RuntimeCodeTooLarge,
     }
 
     // ---------------------------------------------------------------------------
@@ -768,6 +793,27 @@ pub mod pallet {
             });
             Ok(())
         }
+
+        /// Upload a runtime code blob to be used by an approved UpgradeRuntime action.
+        #[pallet::call_index(9)]
+        #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(1, 1))]
+        pub fn upload_runtime_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
+            let caller = ensure_signed(origin)?;
+            ensure!(
+                T::Membership::is_active_member(&caller),
+                Error::<T>::NotActiveMember
+            );
+
+            let code_hash = blake2_256(&code);
+            let bounded: BoundedVec<u8, T::MaxRuntimeCodeSize> =
+                code.try_into().map_err(|_| Error::<T>::RuntimeCodeTooLarge)?;
+            PendingRuntimeCode::<T>::put(bounded);
+            Self::deposit_event(Event::RuntimeCodeUploaded {
+                uploader: caller,
+                code_hash,
+            });
+            Ok(())
+        }
     }
 
     impl<T: Config> Pallet<T> {
@@ -783,7 +829,8 @@ pub mod pallet {
                 | GovernanceAction::SetGovernanceApprovalThreshold { .. }
                 | GovernanceAction::SetConstitutionalApprovalThreshold { .. }
                 | GovernanceAction::SetMembershipApprovalThreshold { .. }
-                | GovernanceAction::SetSuspensionThreshold { .. } => {
+                | GovernanceAction::SetSuspensionThreshold { .. }
+                | GovernanceAction::UpgradeRuntime { .. } => {
                     ProposalClass::Constitutional
                 }
             }
@@ -853,6 +900,25 @@ pub mod pallet {
                     *numerator,
                     *denominator,
                 ),
+                GovernanceAction::UpgradeRuntime { code_hash } => {
+                    let code =
+                        PendingRuntimeCode::<T>::get().ok_or(Error::<T>::NoPendingRuntimeCode)?;
+                    let actual_hash = blake2_256(code.as_slice());
+                    ensure!(actual_hash == *code_hash, Error::<T>::RuntimeCodeHashMismatch);
+                    #[cfg(not(test))]
+                    frame_system::Pallet::<T>::set_code(
+                        frame_system::RawOrigin::Root.into(),
+                        code.into_inner(),
+                    )
+                    .map_err(|e| e.error)?;
+                    #[cfg(test)]
+                    let _ = code;
+                    PendingRuntimeCode::<T>::kill();
+                    Self::deposit_event(Event::RuntimeUpgradeExecuted {
+                        code_hash: *code_hash,
+                    });
+                    Ok(())
+                }
             }
         }
 

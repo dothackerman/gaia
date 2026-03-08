@@ -17,6 +17,7 @@ codec = { features = ["derive"], workspace = true }
 frame-support.workspace = true
 frame-system.workspace = true
 scale-info = { features = ["derive"], workspace = true }
+sp-io = { default-features = false, workspace = true }
 sp-runtime = { default-features = false, workspace = true }
 
 [dev-dependencies]
@@ -31,6 +32,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
+	"sp-io/std",
 	"sp-runtime/std",
 ]
 try-runtime = [
