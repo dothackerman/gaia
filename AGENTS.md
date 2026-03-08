@@ -278,3 +278,15 @@ Instead:
 
 Single-agent sessions on `main` may claim the next sequential number
 directly (no parallelism risk).
+
+---
+
+## 15. Git Discipline (Non-Negotiable)
+
+- Git is backup, recovery, and audit trail. Use it continuously.
+- Commit related changes together in small, reviewable slices.
+- Before each commit: run the required command hierarchy (§5).
+- Push each clean, meaningful commit promptly (avoid local commit pileups).
+- Never end a task with relevant local-only commits not pushed.
+- Never batch unrelated changes into one commit.
+
