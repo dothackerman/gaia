@@ -1,7 +1,6 @@
 use crate as gaia_membership;
 use crate::pallet::MAX_NAME_LEN;
 use frame_support::derive_impl;
-use frame_support::traits::ConstU64;
 use sp_runtime::{BoundedVec, BuildStorage};
 
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -37,7 +36,6 @@ impl frame_system::Config for Test {
 
 impl gaia_membership::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type VotingPeriod = ConstU64<10>;
 }
 
 /// Genesis accounts used across all tests.
@@ -71,6 +69,13 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 		.unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(storage);
-	ext.execute_with(|| System::set_block_number(1));
+	ext.execute_with(|| {
+		System::set_block_number(1);
+		gaia_membership::MembershipVotingPeriod::<Test>::put(10);
+		gaia_membership::MembershipApprovalNumerator::<Test>::put(4);
+		gaia_membership::MembershipApprovalDenominator::<Test>::put(5);
+		gaia_membership::SuspensionNumerator::<Test>::put(1);
+		gaia_membership::SuspensionDenominator::<Test>::put(1);
+	});
 	ext
 }

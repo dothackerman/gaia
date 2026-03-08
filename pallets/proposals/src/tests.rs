@@ -1,14 +1,23 @@
 use crate::mock::*;
 use crate::pallet::{
+    ConstitutionalApprovalDenominator,
+    ConstitutionalApprovalNumerator,
+    ExecutionDelay,
+    GovernanceApprovalDenominator,
+    GovernanceApprovalNumerator,
     ProposalNoCount,
     ProposalStatus,
     ProposalVotes,
+    ProposalVotingPeriod,
     ProposalYesCount,
     // Aliased to avoid shadowing the pallet type alias `Proposals` from mock.
     Proposals as ProposalStorage,
+    StandardApprovalDenominator,
+    StandardApprovalNumerator,
 };
 use crate::{Error, Event};
 use frame_support::{assert_noop, assert_ok};
+use sp_runtime::DispatchError;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,8 +45,109 @@ fn submit_default(origin: u64) -> u32 {
 
 /// Advance chain to a block number past the voting window.
 fn advance_past_voting() {
-    // VotingPeriod = 10 blocks; current block is 1 after genesis.
-    System::set_block_number(12);
+    // current block is 1 after genesis.
+    let period = ProposalVotingPeriod::<Test>::get();
+    System::set_block_number(period + 2);
+}
+
+// ---------------------------------------------------------------------------
+// Governance parameter setters
+// ---------------------------------------------------------------------------
+
+#[test]
+fn set_proposal_voting_period_updates_storage() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Proposals::set_proposal_voting_period(
+            RuntimeOrigin::root(),
+            42
+        ));
+        assert_eq!(ProposalVotingPeriod::<Test>::get(), 42);
+        System::assert_last_event(Event::ProposalVotingPeriodSet { blocks: 42 }.into());
+    });
+}
+
+#[test]
+fn set_execution_delay_updates_storage() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Proposals::set_execution_delay(RuntimeOrigin::root(), 7));
+        assert_eq!(ExecutionDelay::<Test>::get(), 7);
+        System::assert_last_event(Event::ExecutionDelaySet { blocks: 7 }.into());
+    });
+}
+
+#[test]
+fn set_standard_threshold_updates_storage() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Proposals::set_standard_approval_threshold(
+            RuntimeOrigin::root(),
+            3,
+            4
+        ));
+        assert_eq!(StandardApprovalNumerator::<Test>::get(), 3);
+        assert_eq!(StandardApprovalDenominator::<Test>::get(), 4);
+
+        assert_ok!(Proposals::set_governance_approval_threshold(
+            RuntimeOrigin::root(),
+            4,
+            5
+        ));
+        assert_eq!(GovernanceApprovalNumerator::<Test>::get(), 4);
+        assert_eq!(GovernanceApprovalDenominator::<Test>::get(), 5);
+
+        assert_ok!(Proposals::set_constitutional_approval_threshold(
+            RuntimeOrigin::root(),
+            9,
+            10
+        ));
+        assert_eq!(ConstitutionalApprovalNumerator::<Test>::get(), 9);
+        assert_eq!(ConstitutionalApprovalDenominator::<Test>::get(), 10);
+    });
+}
+
+#[test]
+fn set_threshold_rejects_zero_denominator() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Proposals::set_standard_approval_threshold(RuntimeOrigin::root(), 1, 0),
+            Error::<Test>::InvalidThreshold
+        );
+    });
+}
+
+#[test]
+fn set_threshold_rejects_numerator_greater_than_denominator() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Proposals::set_standard_approval_threshold(RuntimeOrigin::root(), 3, 2),
+            Error::<Test>::InvalidThreshold
+        );
+    });
+}
+
+#[test]
+fn non_root_cannot_call_setters() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Proposals::set_proposal_voting_period(RuntimeOrigin::signed(ALICE), 55),
+            DispatchError::BadOrigin
+        );
+        assert_noop!(
+            Proposals::set_execution_delay(RuntimeOrigin::signed(ALICE), 2),
+            DispatchError::BadOrigin
+        );
+        assert_noop!(
+            Proposals::set_standard_approval_threshold(RuntimeOrigin::signed(ALICE), 1, 2),
+            DispatchError::BadOrigin
+        );
+        assert_noop!(
+            Proposals::set_governance_approval_threshold(RuntimeOrigin::signed(ALICE), 4, 5),
+            DispatchError::BadOrigin
+        );
+        assert_noop!(
+            Proposals::set_constitutional_approval_threshold(RuntimeOrigin::signed(ALICE), 9, 10),
+            DispatchError::BadOrigin
+        );
+    });
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 use frame_support::assert_ok;
-use frame_support::traits::{ConstU32, Get, OnInitialize};
+use frame_support::traits::{ConstU32, OnInitialize};
 use gaia_runtime::{
     AccountId, BalancesConfig, Membership, MembershipConfig, Proposals, Runtime,
     RuntimeGenesisConfig, RuntimeOrigin, System,
@@ -41,10 +41,8 @@ pub fn new_test_ext_with_members(members: &[(AccountId, &[u8])]) -> sp_io::TestE
     .expect("bounded");
 
     // Collect unique accounts: all members + Dave/Eve/Ferdie
-    let mut balance_accounts: std::collections::BTreeSet<AccountId> = members
-        .iter()
-        .map(|(id, _)| id.clone())
-        .collect();
+    let mut balance_accounts: std::collections::BTreeSet<AccountId> =
+        members.iter().map(|(id, _)| id.clone()).collect();
     for extra in [dave(), eve(), ferdie()] {
         balance_accounts.insert(extra);
     }
@@ -124,16 +122,16 @@ pub fn advance_blocks(n: u32) {
 
 /// Advance past the treasury proposal voting window so proposals can be tallied.
 ///
-/// Derives the value from the runtime's `VotingPeriod` config, so tests
-/// stay in sync if the constant changes.
+/// Derives the value from proposal-governance storage, so tests stay in sync
+/// if governance updates this parameter.
 pub fn advance_past_voting_period() {
-    let period = <<Runtime as gaia_proposals::pallet::Config>::VotingPeriod as Get<u32>>::get();
+    let period = gaia_proposals::ProposalVotingPeriod::<Runtime>::get();
     advance_blocks(period + 1);
 }
 
 /// Advance past the membership proposal voting window so proposals can be finalized.
 pub fn advance_past_membership_voting_period() {
-    let period = <<Runtime as gaia_membership::pallet::Config>::VotingPeriod as Get<u32>>::get();
+    let period = gaia_membership::MembershipVotingPeriod::<Runtime>::get();
     advance_blocks(period + 1);
 }
 
