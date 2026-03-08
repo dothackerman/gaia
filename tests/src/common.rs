@@ -1,5 +1,5 @@
 use frame_support::assert_ok;
-use frame_support::traits::{ConstU32, Get, OnInitialize};
+use frame_support::traits::{ConstU32, OnInitialize};
 use gaia_runtime::{
     AccountId, BalancesConfig, Membership, MembershipConfig, Proposals, Runtime,
     RuntimeGenesisConfig, RuntimeOrigin, System,

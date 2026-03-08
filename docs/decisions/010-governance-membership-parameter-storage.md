@@ -23,6 +23,9 @@ Genesis initialization preserves current behavior:
 - membership approval threshold: `4/5` (80%)
 - suspension threshold: `1/1` (unanimity of other active members)
 
+The runtime `fast-local` feature forwards to `gaia-membership/fast-local`, so
+the 20-block membership default is active in fast-local builds.
+
 Threshold checks are now formula-based:
 
 - membership approval:

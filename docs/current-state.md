@@ -14,6 +14,7 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
 - Development preset endows tester personas (`Alice`, `Bob`, `Charlie`, `Dave`, `Eve`, `Ferdie`)
 - Governance parameter model:
   - proposal + membership voting periods now read from on-chain storage
+  - runtime `fast-local` forwards to `gaia-proposals/fast-local` and `gaia-membership/fast-local`
   - genesis defaults still: normal `100_800` blocks (~7 days), `fast-local` `20` blocks
 
 ## Pallet: membership (`pallets/membership/`)
@@ -78,7 +79,10 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
   - `set_governance_approval_threshold(numerator, denominator)` (root placeholder)
   - `set_constitutional_approval_threshold(numerator, denominator)` (root placeholder)
 - Lifecycle: `Active -> Approved/Rejected -> Executed`
-- Voting semantics: default threshold still maps to simple majority (`1/2`) at finalize
+- Voting semantics:
+  - `ProposalVotingPeriod` is active in submit/vote window logic (`vote_end` derives from storage)
+  - tallying remains `yes > no` in Wave 1
+  - `ExecutionDelay` and class threshold parameters are stored and settable in Wave 1, with enforcement deferred to later waves
 - Invariants enforced:
   - I-2: active-member check on every vote
   - I-3: single execution guard
@@ -124,10 +128,11 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
 ## Governance hardening status
 
 - Implemented thresholds are intentionally simple:
-  - treasury proposals: storage-backed default threshold `1/2` (equivalent to `yes > no`)
+  - treasury proposals: currently tallied as `yes > no` in Wave 1
+  - proposal voting period is storage-backed and active at submission time
   - membership proposals: storage-backed default snapshot threshold `4/5` (80%)
   - suspension: storage-backed default `1/1` (unanimity of all other active members)
-  - governance/constitutional proposal thresholds stored with defaults `4/5` and `9/10`
+  - governance/constitutional proposal thresholds and execution delay are stored with defaults (`4/5`, `9/10`, `0`) but not enforced yet
 - Setter authority is temporarily `EnsureRoot` in Wave 1 and planned to move to governance origin in Wave 2.
 - This is flagged for future hardening work (quorum/turnout policy and threshold maturity).
 
@@ -151,6 +156,7 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
 - Wave 1A integrated: proposal governance parameters moved from compile-time config to on-chain storage with genesis defaults.
 - Wave 1B integrated: membership governance parameters (including suspension threshold) moved from hardcoded logic/constants to on-chain storage.
 - Added root-gated parameter setter dispatchables in proposals and membership as Wave 1 placeholders.
+- Wired runtime `fast-local` to proposals + membership pallet `fast-local` defaults.
 - Updated runtime configs to remove compile-time `VotingPeriod` associated type bindings for proposals and membership.
 - Updated proposal + membership mock genesis config and unit tests for storage-backed parameter behavior.
 - Updated integration test helpers to read voting periods from pallet storage.
