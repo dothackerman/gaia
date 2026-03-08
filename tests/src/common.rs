@@ -133,7 +133,7 @@ pub fn advance_past_voting_period() {
 
 /// Advance past the membership proposal voting window so proposals can be finalized.
 pub fn advance_past_membership_voting_period() {
-    let period = <<Runtime as gaia_membership::pallet::Config>::VotingPeriod as Get<u32>>::get();
+    let period = gaia_membership::MembershipVotingPeriod::<Runtime>::get();
     advance_blocks(period + 1);
 }
 
