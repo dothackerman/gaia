@@ -96,7 +96,7 @@ Last updated: 2026-03-08 (Waves 1–4 governance milestone integrated).
 - Status: **comprehensive** (`gaia-integration-tests`)
 - Module counts:
   - `membership.rs`: 20 tests
-  - `proposals.rs`: 24 tests
+  - `proposals.rs`: 22 tests
   - `treasury.rs`: 9 tests
   - `cross_pallet.rs`: 10 tests
 - Total integration tests: 61
@@ -149,7 +149,7 @@ Last updated: 2026-03-08 (Waves 1–4 governance milestone integrated).
 |---|---|
 | `cargo check` | pass |
 | `cargo clippy` | pass (existing node-template warnings remain) |
-| `cargo test` | pass (167 tests total) |
+| `cargo test` | pass (168 tests total) |
 | `cargo build` | pass |
 
 ## Upstream warnings
