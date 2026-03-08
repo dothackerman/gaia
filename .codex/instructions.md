@@ -40,6 +40,18 @@ Significant decisions include (but are not limited to):
 - Adding or removing a pallet
 - Altering any of the invariants listed in `AGENTS.md`
 
+## Multi-agent and parallel sessions
+
+If you are running in a parallel worktree session (Pattern A or B — see
+`AGENTS.md §12`):
+
+- **Do not modify `docs/current-state.md`** — write session progress to
+  `docs/agent-state/<your-branch-slug>.md` instead (see `AGENTS.md §13`).
+- **Do not claim a sequential ADR number** — create drafts in
+  `docs/decisions/draft/` (see `AGENTS.md §14`).
+- **Worktree lifecycle** is documented in `AGENTS.md §12.1`.
+- If you are the **merger**, follow `.codex/agents/merger.md` exactly.
+
 ## Post-Build Output Analysis
 
 After every cargo command that produces output, classify all warnings before proceeding:

@@ -36,9 +36,20 @@ cargo check   →   cargo clippy   →   cargo test   →   cargo build
 
 See `AGENTS.md` §5–7 for cargo command hierarchy, code quality rules, and ADR requirements. Post-build analysis is documented in the runbooks listed below. The same rules apply to Claude Code sessions.
 
+## Multi-agent and parallel sessions
+
+If running in a parallel worktree session (see `AGENTS.md §12`):
+
+- **Do not modify `docs/current-state.md`** — write to
+  `docs/agent-state/<branch-slug>.md` instead (see `AGENTS.md §13`).
+- **Do not claim a sequential ADR number** — use `docs/decisions/draft/`
+  (see `AGENTS.md §14`).
+- If you are the **merger**, follow `.claude/agents/merger.md` exactly.
+
 ## Runbooks
 
 | Runbook | When to use |
 |---|---|
 | `.claude/agents/post-build.md` | After every successful build |
 | `.claude/agents/security-upgrade.md` | When a CVE is identified in a dependency |
+| `.claude/agents/merger.md` | When acting as merger in a multi-agent session |

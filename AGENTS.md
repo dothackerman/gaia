@@ -23,8 +23,10 @@ AGENTS.md                          # ← YOU ARE HERE — agent instructions
 CLAUDE.md                          # Claude Code session instructions (auto-read)
 README.md                          # Human-facing project overview
 docs/
-  current-state.md                 # Live build status — read before coding
+  current-state.md                 # Live build status — read before coding (READ-ONLY in parallel sessions)
+  agent-state/                     # Per-session state files written by parallel agents (see §13)
   decisions/                       # ADRs (Architecture Decision Records)
+    draft/                         # Draft ADRs from parallel sessions — merger promotes to numbered
     001-standalone-chain.md
     002-versioning-policy.md
     003-wasm32v1-none-target.md
@@ -41,10 +43,12 @@ docs/
   agents/
     post-build.md                  # Post-build warning-classification workflow
     security-upgrade.md            # Security dependency-upgrade runbook
+    merger.md                      # Merger agent protocol (Pattern A + B) — see §12
 .claude/
   agents/
     post-build.md                  # Post-build warning-classification workflow
     security-upgrade.md            # Security dependency-upgrade runbook
+    merger.md                      # Merger agent protocol (mirror)
 node/                              # Substrate node binary
 runtime/                           # Runtime crate — wires pallets together
 pallets/
@@ -174,3 +178,102 @@ Use these terms consistently in code, comments, and documentation.
 
 See [`docs/current-state.md`](docs/current-state.md) for live status of every
 component. **Read it before writing any code.**
+
+---
+
+## 12. Multi-agent workflow
+
+Two parallel workflow patterns are supported. See ADR-008 for the full
+decision record. See `.codex/agents/merger.md` for the merger runbook.
+
+### 12.1 Pattern A — Ralph loop (parallel Codex sessions)
+
+Two Codex instances work in parallel, each in an isolated git worktree.
+A third Codex session acts as merger when both are complete.
+
+**Worktree lifecycle:**
+
+```bash
+# Create — run from the repo root, outside existing worktrees
+git worktree add ../gaia.worktrees/codex-<task>-<YYYY-MM-DD> -b codex/<task>
+
+# Work inside the worktree
+cd ../gaia.worktrees/codex-<task>-<YYYY-MM-DD>
+
+# Cleanup — only after the branch is merged
+cd <repo-root>
+git worktree remove ../gaia.worktrees/codex-<task>-<YYYY-MM-DD>
+git branch -d codex/<task>
+```
+
+Naming: `codex-<task>-<YYYY-MM-DD>` (e.g. `codex-treasury-fee-2026-03-07`).
+
+### 12.2 Pattern B — Orchestrator + sub-agents
+
+A single orchestrator Codex session decomposes the task, spawns sub-agents,
+and integrates their branches sequentially. The orchestrator owns the merge.
+
+### 12.3 Parallelization boundaries
+
+These are determined by the pallet dependency graph (§3.2):
+
+| Work | Safe to parallelise? | Reason |
+|---|---|---|
+| `pallets/membership/` changes | ✅ Yes | No upstream pallet dependencies |
+| `pallets/treasury/` changes | ✅ Yes | No upstream pallet dependencies |
+| `pallets/proposals/` changes | ⚠️ Caution | Depends on membership + treasury traits |
+| `runtime/` wiring | ❌ Serialise | Single file; high merge conflict risk |
+| `docs/current-state.md` | ❌ Read-only | Parallel agents must not write this file |
+| `docs/decisions/` numbered ADRs | ❌ Serialise | Number collisions — use draft/ instead |
+| `tests/` integration tests | ⚠️ Caution | Cross-pallet tests may overlap |
+
+**Rule:** if two parallel agents both touch `proposals` or `runtime/`, the
+operator must explicitly task-decompose to avoid semantic conflicts.
+
+---
+
+## 13. Agent state in parallel sessions
+
+`docs/current-state.md` is **read-only** for any agent running in a parallel
+worktree session. Do not modify it during parallel work.
+
+Instead, write your session progress to:
+
+```
+docs/agent-state/<branch-slug>.md
+```
+
+Required sections in your agent-state file:
+
+```markdown
+## What changed
+<bullet list of functional changes>
+
+## Build state
+<result of cargo check / cargo test / cargo build>
+
+## Open issues
+<anything unresolved that the merger must handle>
+```
+
+The merger reads all `docs/agent-state/` files and updates
+`docs/current-state.md` as part of integration. After a successful
+merge the merger deletes the consumed agent-state files.
+
+---
+
+## 14. ADR protocol in parallel sessions
+
+**Never claim a sequential ADR number directly in a parallel session.**
+Number collisions between parallel branches corrupt the ADR log.
+
+Instead:
+
+1. Create your draft in `docs/decisions/draft/<branch-slug>-<title>.md`.
+2. Use the full ADR format (see `docs/decisions/001-standalone-chain.md`).
+3. Write `# ADR DRAFT — <title>` as the heading (no number yet).
+4. The merger promotes drafts to numbered ADRs in sequence before opening
+   the integration PR.
+
+Single-agent sessions on `main` may claim the next sequential number
+directly (no parallelism risk).
