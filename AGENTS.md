@@ -44,6 +44,7 @@ docs/
     post-build.md                  # Post-build warning-classification workflow
     security-upgrade.md            # Security dependency-upgrade runbook
     merger.md                      # Merger agent protocol (Pattern A + B) — see §12
+    ralph-loop-controller.md       # Codex Ralph loop controller protocol
 .claude/
   agents/
     post-build.md                  # Post-build warning-classification workflow
