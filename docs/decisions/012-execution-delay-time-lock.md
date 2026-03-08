@@ -1,4 +1,4 @@
-# ADR DRAFT — Mandatory execution delay after proposal approval
+# ADR 012 — Mandatory execution delay after proposal approval
 
 ## Context
 

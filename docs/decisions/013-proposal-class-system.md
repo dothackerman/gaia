@@ -1,4 +1,4 @@
-# ADR DRAFT — Three-tier proposal class system for meta-governance
+# ADR 013 — Three-tier proposal class system for meta-governance
 
 ## Context
 
