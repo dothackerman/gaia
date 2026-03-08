@@ -1,4 +1,4 @@
-# ADR DRAFT — On-chain storage for membership governance parameters
+# ADR 010 — On-chain storage for membership governance parameters
 
 ## Context
 

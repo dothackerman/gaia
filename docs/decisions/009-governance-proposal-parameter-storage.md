@@ -1,4 +1,4 @@
-# ADR DRAFT — On-chain storage for proposal governance parameters
+# ADR 009 — On-chain storage for proposal governance parameters
 
 ## Context
 
