@@ -255,7 +255,8 @@ pub mod pallet {
                 return Weight::zero();
             }
 
-            let mut reads = 0u64;
+            // Account for on_chain_storage_version() storage read above.
+            let mut reads = 1u64;
             let mut writes = 0u64;
 
             reads = reads.saturating_add(1);

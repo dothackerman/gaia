@@ -10,8 +10,8 @@
 //! - Membership is requested through **membership proposals** with explicit
 //!   lifecycle states: `Active -> Approved/Rejected`.
 //! - Active members propose candidates and vote on proposals.
-//! - The approval threshold is 80% of active members, snapshotted at proposal
-//!   submission time.
+//! - The approval threshold is storage-backed and checked against a submit-time
+//!   active-member snapshot. Genesis default is 80% (`4/5`).
 //! - Each proposal has a voting deadline (`vote_end`) and cannot remain active
 //!   forever; active members finalize after the deadline.
 //! - Suspended members cannot propose, vote, or finalize membership proposals.
@@ -274,7 +274,8 @@ pub mod pallet {
                 return Weight::zero();
             }
 
-            let mut reads = 0u64;
+            // Account for on_chain_storage_version() storage read above.
+            let mut reads = 1u64;
             let mut writes = 0u64;
 
             reads = reads.saturating_add(1);
