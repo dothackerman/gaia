@@ -145,22 +145,22 @@ Mismatched class → `Error::ProposalClassMismatch`.
 
 ```
 Wave 1 (parallel):
-  Agent A  →  docs: .claude/agents/governance-wave1a-proposal-params.md
-  Agent B  →  docs: .claude/agents/governance-wave1b-membership-params.md
+  Agent A  →  docs: .codex/agents/governance-wave1a-proposal-params.md
+  Agent B  →  docs: .codex/agents/governance-wave1b-membership-params.md
 
 Wave 1 stabilization (serial, required before Wave 2):
   - Backfill migrations for new `StorageValue` governance keys on runtime upgrade
     (protects in-place upgrades from zero-default behavior).
 
 Wave 2 (sequential, after Wave 1 merged):
-  Agent C  →  docs: .claude/agents/governance-wave2-action-enum.md
+  Agent C  →  docs: .codex/agents/governance-wave2-action-enum.md
 
 Wave 3 (parallel, after Wave 2 merged):
-  Agent D  →  docs: .claude/agents/governance-wave3a-time-locks.md
-  Agent E  →  docs: .claude/agents/governance-wave3b-proposal-classes.md
+  Agent D  →  docs: .codex/agents/governance-wave3a-time-locks.md
+  Agent E  →  docs: .codex/agents/governance-wave3b-proposal-classes.md
 
 Wave 4 (sequential, after Wave 3 merged):
-  Agent F  →  docs: .claude/agents/governance-wave4-runtime-upgrade.md
+  Agent F  →  docs: .codex/agents/governance-wave4-runtime-upgrade.md
 ```
 
 Dependency graph:
