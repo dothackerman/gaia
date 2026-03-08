@@ -9,7 +9,7 @@ use crate::pallet::{
 };
 use crate::{Error, Event, MembershipChecker};
 use frame_support::{assert_noop, assert_ok};
-use frame_support::traits::OnInitialize;
+use frame_support::traits::{GetStorageVersion, OnInitialize, StorageVersion};
 use sp_runtime::DispatchError;
 
 fn advance_past_membership_voting_period() {
@@ -195,6 +195,63 @@ fn non_root_cannot_call_setters() {
             Membership::set_suspension_threshold(RuntimeOrigin::signed(ALICE), 1, 1),
             DispatchError::BadOrigin
         );
+    });
+}
+
+#[test]
+fn migration_backfills_missing_membership_parameter_keys() {
+    new_test_ext().execute_with(|| {
+        MembershipVotingPeriod::<Test>::kill();
+        MembershipApprovalNumerator::<Test>::kill();
+        MembershipApprovalDenominator::<Test>::kill();
+        SuspensionNumerator::<Test>::kill();
+        SuspensionDenominator::<Test>::kill();
+
+        StorageVersion::new(0).put::<Membership>();
+        let _ = <Membership as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        assert_eq!(MembershipVotingPeriod::<Test>::get(), 100_800);
+        assert_eq!(MembershipApprovalNumerator::<Test>::get(), 4);
+        assert_eq!(MembershipApprovalDenominator::<Test>::get(), 5);
+        assert_eq!(SuspensionNumerator::<Test>::get(), 1);
+        assert_eq!(SuspensionDenominator::<Test>::get(), 1);
+        assert_eq!(
+            <Membership as GetStorageVersion>::on_chain_storage_version(),
+            StorageVersion::new(1)
+        );
+    });
+}
+
+#[test]
+fn migration_preserves_existing_membership_parameter_values() {
+    new_test_ext().execute_with(|| {
+        MembershipVotingPeriod::<Test>::put(33);
+        MembershipApprovalNumerator::<Test>::put(3);
+        MembershipApprovalDenominator::<Test>::put(4);
+        SuspensionNumerator::<Test>::put(2);
+        SuspensionDenominator::<Test>::put(3);
+
+        StorageVersion::new(0).put::<Membership>();
+        let _ = <Membership as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        assert_eq!(MembershipVotingPeriod::<Test>::get(), 33);
+        assert_eq!(MembershipApprovalNumerator::<Test>::get(), 3);
+        assert_eq!(MembershipApprovalDenominator::<Test>::get(), 4);
+        assert_eq!(SuspensionNumerator::<Test>::get(), 2);
+        assert_eq!(SuspensionDenominator::<Test>::get(), 3);
+    });
+}
+
+#[test]
+fn migration_is_idempotent_after_storage_version_update() {
+    new_test_ext().execute_with(|| {
+        StorageVersion::new(0).put::<Membership>();
+        let _ = <Membership as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        MembershipVotingPeriod::<Test>::put(91);
+        let _ = <Membership as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        assert_eq!(MembershipVotingPeriod::<Test>::get(), 91);
     });
 }
 

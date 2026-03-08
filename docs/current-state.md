@@ -10,7 +10,7 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
 
 - Status: **GAIA pallets wired**
 - Pallets wired: `template`, `membership`, `treasury`, `proposals`
-- Runtime `spec_version`: **101** (bumped for membership interface/storage changes)
+- Runtime `spec_version`: **102** (Wave 1 storage migration backfill hardening)
 - Development preset endows tester personas (`Alice`, `Bob`, `Charlie`, `Dave`, `Eve`, `Ferdie`)
 - Governance parameter model:
   - proposal + membership voting periods now read from on-chain storage
@@ -134,6 +134,8 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
   - suspension: storage-backed default `1/1` (unanimity of all other active members)
   - governance/constitutional proposal thresholds and execution delay are stored with defaults (`4/5`, `9/10`, `0`) but not enforced yet
 - Setter authority is temporarily `EnsureRoot` in Wave 1 and planned to move to governance origin in Wave 2.
+- Runtime-upgrade migrations now backfill missing governance parameter storage keys for
+  proposals + membership to preserve safe defaults on in-place upgrades.
 - This is flagged for future hardening work (quorum/turnout policy and threshold maturity).
 
 ## Build status
@@ -156,6 +158,8 @@ Last updated: 2026-03-08 (Wave 1 governance parameter storage integrated).
 - Wave 1A integrated: proposal governance parameters moved from compile-time config to on-chain storage with genesis defaults.
 - Wave 1B integrated: membership governance parameters (including suspension threshold) moved from hardcoded logic/constants to on-chain storage.
 - Added root-gated parameter setter dispatchables in proposals and membership as Wave 1 placeholders.
+- Added per-pallet `on_runtime_upgrade` backfill migrations for governance parameter storage keys.
+- Bumped runtime `spec_version` to `102` for Wave 1 stabilization.
 - Wired runtime `fast-local` to proposals + membership pallet `fast-local` defaults.
 - Updated runtime configs to remove compile-time `VotingPeriod` associated type bindings for proposals and membership.
 - Updated proposal + membership mock genesis config and unit tests for storage-backed parameter behavior.

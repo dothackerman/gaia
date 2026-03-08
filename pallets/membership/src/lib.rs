@@ -47,6 +47,7 @@ pub trait MembershipChecker<AccountId> {
 pub mod pallet {
     use super::*;
     use frame_support::pallet_prelude::*;
+    use frame_support::traits::StorageVersion;
     use frame_support::sp_runtime::{traits::SaturatedConversion, Saturating};
     use frame_system::pallet_prelude::*;
 
@@ -112,7 +113,10 @@ pub mod pallet {
         pub status: MembershipProposalStatus,
     }
 
+    const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
     #[pallet::pallet]
+    #[pallet::storage_version(STORAGE_VERSION)]
     pub struct Pallet<T>(_);
 
     #[pallet::config]
@@ -256,6 +260,58 @@ pub mod pallet {
     #[cfg(not(feature = "fast-local"))]
     fn default_membership_voting_period<T: Config>() -> BlockNumberFor<T> {
         100_800u32.saturated_into()
+    }
+
+    // ---------------------------------------------------------------------------
+    // Runtime upgrades
+    // ---------------------------------------------------------------------------
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_runtime_upgrade() -> Weight {
+            let on_chain = <Pallet<T> as frame_support::traits::GetStorageVersion>::on_chain_storage_version();
+            if on_chain >= STORAGE_VERSION {
+                return Weight::zero();
+            }
+
+            let mut reads = 0u64;
+            let mut writes = 0u64;
+
+            reads = reads.saturating_add(1);
+            if !MembershipVotingPeriod::<T>::exists() {
+                MembershipVotingPeriod::<T>::put(default_membership_voting_period::<T>());
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !MembershipApprovalNumerator::<T>::exists() {
+                MembershipApprovalNumerator::<T>::put(4);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !MembershipApprovalDenominator::<T>::exists() {
+                MembershipApprovalDenominator::<T>::put(5);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !SuspensionNumerator::<T>::exists() {
+                SuspensionNumerator::<T>::put(1);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !SuspensionDenominator::<T>::exists() {
+                SuspensionDenominator::<T>::put(1);
+                writes = writes.saturating_add(1);
+            }
+
+            STORAGE_VERSION.put::<Pallet<T>>();
+            writes = writes.saturating_add(1);
+
+            T::DbWeight::get().reads_writes(reads, writes)
+        }
     }
 
     // ---------------------------------------------------------------------------

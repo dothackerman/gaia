@@ -51,6 +51,8 @@ Each threshold setter validates `denominator != 0` and
   logic.
 - ADR-005 semantics are preserved by default because `(1, 1)` keeps peer
   suspension at unanimity.
+- Runtime-upgrade backfill migration initializes any missing membership
+  governance keys on existing chains, preserving safe defaults.
 
 **Negative / accepted trade-offs**
 

@@ -17,6 +17,7 @@ use crate::pallet::{
 };
 use crate::{Error, Event};
 use frame_support::{assert_noop, assert_ok};
+use frame_support::traits::{GetStorageVersion, StorageVersion};
 use sp_runtime::DispatchError;
 
 // ---------------------------------------------------------------------------
@@ -147,6 +148,75 @@ fn non_root_cannot_call_setters() {
             Proposals::set_constitutional_approval_threshold(RuntimeOrigin::signed(ALICE), 9, 10),
             DispatchError::BadOrigin
         );
+    });
+}
+
+#[test]
+fn migration_backfills_missing_governance_parameter_keys() {
+    new_test_ext().execute_with(|| {
+        ProposalVotingPeriod::<Test>::kill();
+        ExecutionDelay::<Test>::kill();
+        StandardApprovalNumerator::<Test>::kill();
+        StandardApprovalDenominator::<Test>::kill();
+        GovernanceApprovalNumerator::<Test>::kill();
+        GovernanceApprovalDenominator::<Test>::kill();
+        ConstitutionalApprovalNumerator::<Test>::kill();
+        ConstitutionalApprovalDenominator::<Test>::kill();
+
+        StorageVersion::new(0).put::<Proposals>();
+        let _ = <Proposals as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        assert_eq!(ProposalVotingPeriod::<Test>::get(), 100_800);
+        assert_eq!(ExecutionDelay::<Test>::get(), 0);
+        assert_eq!(StandardApprovalNumerator::<Test>::get(), 1);
+        assert_eq!(StandardApprovalDenominator::<Test>::get(), 2);
+        assert_eq!(GovernanceApprovalNumerator::<Test>::get(), 4);
+        assert_eq!(GovernanceApprovalDenominator::<Test>::get(), 5);
+        assert_eq!(ConstitutionalApprovalNumerator::<Test>::get(), 9);
+        assert_eq!(ConstitutionalApprovalDenominator::<Test>::get(), 10);
+        assert_eq!(
+            <Proposals as GetStorageVersion>::on_chain_storage_version(),
+            StorageVersion::new(1)
+        );
+    });
+}
+
+#[test]
+fn migration_preserves_existing_parameter_values() {
+    new_test_ext().execute_with(|| {
+        ProposalVotingPeriod::<Test>::put(42);
+        ExecutionDelay::<Test>::put(3);
+        StandardApprovalNumerator::<Test>::put(3);
+        StandardApprovalDenominator::<Test>::put(4);
+        GovernanceApprovalNumerator::<Test>::put(2);
+        GovernanceApprovalDenominator::<Test>::put(3);
+        ConstitutionalApprovalNumerator::<Test>::put(8);
+        ConstitutionalApprovalDenominator::<Test>::put(9);
+
+        StorageVersion::new(0).put::<Proposals>();
+        let _ = <Proposals as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        assert_eq!(ProposalVotingPeriod::<Test>::get(), 42);
+        assert_eq!(ExecutionDelay::<Test>::get(), 3);
+        assert_eq!(StandardApprovalNumerator::<Test>::get(), 3);
+        assert_eq!(StandardApprovalDenominator::<Test>::get(), 4);
+        assert_eq!(GovernanceApprovalNumerator::<Test>::get(), 2);
+        assert_eq!(GovernanceApprovalDenominator::<Test>::get(), 3);
+        assert_eq!(ConstitutionalApprovalNumerator::<Test>::get(), 8);
+        assert_eq!(ConstitutionalApprovalDenominator::<Test>::get(), 9);
+    });
+}
+
+#[test]
+fn migration_is_idempotent_after_storage_version_update() {
+    new_test_ext().execute_with(|| {
+        StorageVersion::new(0).put::<Proposals>();
+        let _ = <Proposals as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        ProposalVotingPeriod::<Test>::put(77);
+        let _ = <Proposals as frame_support::traits::Hooks<u64>>::on_runtime_upgrade();
+
+        assert_eq!(ProposalVotingPeriod::<Test>::get(), 77);
     });
 }
 

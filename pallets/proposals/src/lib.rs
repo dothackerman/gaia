@@ -58,6 +58,7 @@ pub trait MembershipGovernance<Origin, BlockNumber> {
 pub mod pallet {
     use super::*;
     use frame_support::pallet_prelude::*;
+    use frame_support::traits::StorageVersion;
     use frame_support::sp_runtime::traits::SaturatedConversion;
     use frame_support::sp_runtime::Saturating;
     use frame_system::pallet_prelude::*;
@@ -99,7 +100,10 @@ pub mod pallet {
         pub vote_end: BlockNumberFor<T>,
     }
 
+    const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
     #[pallet::pallet]
+    #[pallet::storage_version(STORAGE_VERSION)]
     pub struct Pallet<T>(_);
 
     #[pallet::config]
@@ -236,6 +240,76 @@ pub mod pallet {
             GovernanceApprovalDenominator::<T>::put(self.governance_approval_denominator);
             ConstitutionalApprovalNumerator::<T>::put(self.constitutional_approval_numerator);
             ConstitutionalApprovalDenominator::<T>::put(self.constitutional_approval_denominator);
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Runtime upgrades
+    // ---------------------------------------------------------------------------
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_runtime_upgrade() -> Weight {
+            let on_chain = <Pallet<T> as frame_support::traits::GetStorageVersion>::on_chain_storage_version();
+            if on_chain >= STORAGE_VERSION {
+                return Weight::zero();
+            }
+
+            let mut reads = 0u64;
+            let mut writes = 0u64;
+
+            reads = reads.saturating_add(1);
+            if !ProposalVotingPeriod::<T>::exists() {
+                ProposalVotingPeriod::<T>::put(default_proposal_voting_period::<T>());
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !ExecutionDelay::<T>::exists() {
+                ExecutionDelay::<T>::put(BlockNumberFor::<T>::default());
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !StandardApprovalNumerator::<T>::exists() {
+                StandardApprovalNumerator::<T>::put(1);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !StandardApprovalDenominator::<T>::exists() {
+                StandardApprovalDenominator::<T>::put(2);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !GovernanceApprovalNumerator::<T>::exists() {
+                GovernanceApprovalNumerator::<T>::put(4);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !GovernanceApprovalDenominator::<T>::exists() {
+                GovernanceApprovalDenominator::<T>::put(5);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !ConstitutionalApprovalNumerator::<T>::exists() {
+                ConstitutionalApprovalNumerator::<T>::put(9);
+                writes = writes.saturating_add(1);
+            }
+
+            reads = reads.saturating_add(1);
+            if !ConstitutionalApprovalDenominator::<T>::exists() {
+                ConstitutionalApprovalDenominator::<T>::put(10);
+                writes = writes.saturating_add(1);
+            }
+
+            STORAGE_VERSION.put::<Pallet<T>>();
+            writes = writes.saturating_add(1);
+
+            T::DbWeight::get().reads_writes(reads, writes)
         }
     }
 

@@ -57,6 +57,8 @@ Wave 1 enforcement scope is intentionally partial:
   associated type.
 - Fast-local builds keep the 20-block default because runtime `fast-local`
   now forwards to `gaia-proposals/fast-local`.
+- Runtime-upgrade backfill migration initializes any missing governance
+  parameter keys on existing chains, avoiding zero-default behavior.
 
 **Negative / accepted trade-offs**
 
