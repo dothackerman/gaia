@@ -7,6 +7,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use commands::{local, membership, persona, proposal, treasury, watch};
 use personas::Persona;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "gaia-tester", about = "GAIA local tester CLI")]
@@ -34,7 +35,7 @@ enum TopCommand {
         #[command(subcommand)]
         command: MembershipCommand,
     },
-    #[command(about = "Run treasury spending proposal lifecycle actions.")]
+    #[command(about = "Run governance proposal lifecycle actions.")]
     Proposals {
         #[command(subcommand)]
         command: ProposalCommand,
@@ -96,41 +97,139 @@ enum MembershipCommand {
 
 #[derive(Subcommand, Debug)]
 enum ProposalCommand {
-    #[command(about = "Submit a treasury withdrawal proposal.")]
+    #[command(about = "Submit a typed governance proposal.")]
     Submit {
+        #[command(subcommand)]
+        command: ProposalSubmitCommand,
+    },
+    #[command(about = "Upload a runtime code blob for a later constitutional upgrade proposal.")]
+    UploadRuntimeCode {
+        #[arg(help = "Seeded persona whose key signs this runtime-code upload transaction.")]
+        signer: Persona,
+        #[arg(help = "Path to the runtime Wasm blob to upload.")]
+        code_path: PathBuf,
+    },
+    #[command(about = "Cast a yes/no vote on a proposal.")]
+    Vote {
+        #[arg(help = "Seeded persona whose key signs this proposal vote transaction.")]
+        signer: Persona,
+        #[arg(help = "Proposal id to vote on.")]
+        proposal_id: u32,
+        #[arg(help = "Vote choice for this proposal: yes or no.")]
+        approve: VoteChoice,
+    },
+    #[command(about = "Finalize (tally) a proposal after voting ends.")]
+    Finalize {
+        #[arg(help = "Seeded persona whose key signs this proposal finalize transaction.")]
+        signer: Persona,
+        #[arg(help = "Proposal id to finalize.")]
+        proposal_id: u32,
+    },
+    #[command(about = "Execute an approved proposal exactly once.")]
+    Execute {
+        #[arg(help = "Seeded persona whose key signs this proposal execution transaction.")]
+        signer: Persona,
+        #[arg(help = "Proposal id to execute.")]
+        proposal_id: u32,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ProposalSubmitCommand {
+    #[command(about = "Submit a standard treasury disbursement proposal.")]
+    Disbursement {
         #[arg(help = "Seeded persona whose key signs this proposal submission transaction.")]
         signer: Persona,
         #[arg(help = "Short proposal title shown in watch output.")]
         title: String,
         #[arg(help = "Longer proposal description explaining the spending request.")]
         description: String,
+        #[arg(help = "Seeded persona who should receive funds if approved.")]
+        recipient: Persona,
         #[arg(help = "Requested treasury amount to disburse if approved.")]
         amount: u128,
-        #[arg(help = "Target event block associated with this proposal context.")]
-        event_block: u32,
     },
-    #[command(about = "Cast a yes/no vote on a treasury proposal.")]
-    Vote {
-        #[arg(help = "Seeded persona whose key signs this proposal vote transaction.")]
+    #[command(about = "Submit a governance proposal to set the proposal voting period.")]
+    SetProposalVotingPeriod {
         signer: Persona,
-        #[arg(help = "Treasury proposal id to vote on.")]
-        proposal_id: u32,
-        #[arg(help = "Vote choice for this proposal: yes or no.")]
-        approve: VoteChoice,
+        title: String,
+        description: String,
+        #[arg(help = "New proposal voting period in blocks.")]
+        blocks: u32,
     },
-    #[command(about = "Finalize (tally) a treasury proposal after voting ends.")]
-    Finalize {
-        #[arg(help = "Seeded persona whose key signs this proposal finalize transaction.")]
+    #[command(about = "Submit a governance proposal to set the execution delay.")]
+    SetExecutionDelay {
         signer: Persona,
-        #[arg(help = "Treasury proposal id to finalize.")]
-        proposal_id: u32,
+        title: String,
+        description: String,
+        #[arg(help = "New execution delay in blocks.")]
+        blocks: u32,
     },
-    #[command(about = "Execute an approved treasury proposal exactly once.")]
-    Execute {
-        #[arg(help = "Seeded persona whose key signs this proposal execution transaction.")]
+    #[command(about = "Submit a governance proposal to set the membership voting period.")]
+    SetMembershipVotingPeriod {
         signer: Persona,
-        #[arg(help = "Treasury proposal id to execute.")]
-        proposal_id: u32,
+        title: String,
+        description: String,
+        #[arg(help = "New membership voting period in blocks.")]
+        blocks: u32,
+    },
+    #[command(about = "Submit a constitutional proposal to set the standard approval threshold.")]
+    SetStandardThreshold {
+        signer: Persona,
+        title: String,
+        description: String,
+        numerator: u32,
+        denominator: u32,
+    },
+    #[command(
+        about = "Submit a constitutional proposal to set the governance approval threshold."
+    )]
+    SetGovernanceThreshold {
+        signer: Persona,
+        title: String,
+        description: String,
+        numerator: u32,
+        denominator: u32,
+    },
+    #[command(
+        about = "Submit a constitutional proposal to set the constitutional approval threshold."
+    )]
+    SetConstitutionalThreshold {
+        signer: Persona,
+        title: String,
+        description: String,
+        numerator: u32,
+        denominator: u32,
+    },
+    #[command(
+        about = "Submit a constitutional proposal to set the membership approval threshold."
+    )]
+    SetMembershipThreshold {
+        signer: Persona,
+        title: String,
+        description: String,
+        numerator: u32,
+        denominator: u32,
+    },
+    #[command(about = "Submit a constitutional proposal to set the suspension threshold.")]
+    SetSuspensionThreshold {
+        signer: Persona,
+        title: String,
+        description: String,
+        numerator: u32,
+        denominator: u32,
+    },
+    #[command(
+        about = "Submit a constitutional proposal to upgrade the runtime using a previously uploaded code blob."
+    )]
+    UpgradeRuntime {
+        signer: Persona,
+        title: String,
+        description: String,
+        #[arg(
+            help = "Expected blake2-256 hash of the uploaded runtime code, as 0x-prefixed or plain hex."
+        )]
+        code_hash: String,
     },
 }
 
@@ -147,9 +246,9 @@ enum TreasuryCommand {
 
 #[derive(Subcommand, Debug)]
 enum WatchCommand {
-    #[command(about = "Show one treasury proposal by id, or list proposals when no id is given.")]
+    #[command(about = "Show one proposal by id, or list proposals when no id is given.")]
     Proposals {
-        #[arg(help = "Optional treasury proposal id for detail view.")]
+        #[arg(help = "Optional proposal id for detail view.")]
         proposal_id: Option<u32>,
         #[arg(
             long,
@@ -174,7 +273,9 @@ enum WatchCommand {
         #[arg(long, help = "Disable pager and print raw list output.")]
         no_pager: bool,
     },
-    #[command(about = "Show one membership proposal by id, or list proposals when no id is given.")]
+    #[command(
+        about = "Show one membership proposal by id, or list proposals when no id is given."
+    )]
     Memberships {
         #[arg(help = "Optional membership proposal id for detail view.")]
         proposal_id: Option<u32>,
@@ -246,34 +347,197 @@ async fn main() -> Result<()> {
             } => {
                 membership::vote_candidate(&cli.url, signer, proposal_id, approve.as_bool()).await?
             }
-            MembershipCommand::Finalize { signer, proposal_id } => {
-                membership::finalize(&cli.url, signer, proposal_id).await?
-            }
+            MembershipCommand::Finalize {
+                signer,
+                proposal_id,
+            } => membership::finalize(&cli.url, signer, proposal_id).await?,
         },
         TopCommand::Proposals { command } => match command {
-            ProposalCommand::Submit {
-                signer,
-                title,
-                description,
-                amount,
-                event_block,
-            } => {
-                proposal::submit(&cli.url, signer, title, description, amount, event_block).await?
+            ProposalCommand::Submit { command } => match command {
+                ProposalSubmitCommand::Disbursement {
+                    signer,
+                    title,
+                    description,
+                    recipient,
+                    amount,
+                } => {
+                    proposal::submit_disbursement(
+                        &cli.url,
+                        signer,
+                        title,
+                        description,
+                        recipient,
+                        amount,
+                    )
+                    .await?
+                }
+                ProposalSubmitCommand::SetProposalVotingPeriod {
+                    signer,
+                    title,
+                    description,
+                    blocks,
+                } => {
+                    proposal::submit_set_proposal_voting_period(
+                        &cli.url,
+                        signer,
+                        title,
+                        description,
+                        blocks,
+                    )
+                    .await?
+                }
+                ProposalSubmitCommand::SetExecutionDelay {
+                    signer,
+                    title,
+                    description,
+                    blocks,
+                } => {
+                    proposal::submit_set_execution_delay(
+                        &cli.url,
+                        signer,
+                        title,
+                        description,
+                        blocks,
+                    )
+                    .await?
+                }
+                ProposalSubmitCommand::SetMembershipVotingPeriod {
+                    signer,
+                    title,
+                    description,
+                    blocks,
+                } => {
+                    proposal::submit_set_membership_voting_period(
+                        &cli.url,
+                        signer,
+                        title,
+                        description,
+                        blocks,
+                    )
+                    .await?
+                }
+                ProposalSubmitCommand::SetStandardThreshold {
+                    signer,
+                    title,
+                    description,
+                    numerator,
+                    denominator,
+                } => {
+                    proposal::submit_set_standard_threshold(
+                        &cli.url,
+                        signer,
+                        title,
+                        description,
+                        numerator,
+                        denominator,
+                    )
+                    .await?
+                }
+                ProposalSubmitCommand::SetGovernanceThreshold {
+                    signer,
+                    title,
+                    description,
+                    numerator,
+                    denominator,
+                } => {
+                    proposal::submit_set_governance_threshold(
+                        &cli.url,
+                        signer,
+                        title,
+                        description,
+                        numerator,
+                        denominator,
+                    )
+                    .await?
+                }
+                ProposalSubmitCommand::SetConstitutionalThreshold {
+                    signer,
+                    title,
+                    description,
+                    numerator,
+                    denominator,
+                } => {
+                    proposal::submit_set_constitutional_threshold(
+                        &cli.url,
+                        signer,
+                        title,
+                        description,
+                        numerator,
+                        denominator,
+                    )
+                    .await?
+                }
+                ProposalSubmitCommand::SetMembershipThreshold {
+                    signer,
+                    title,
+                    description,
+                    numerator,
+                    denominator,
+                } => {
+                    proposal::submit_set_membership_threshold(
+                        &cli.url,
+                        signer,
+                        title,
+                        description,
+                        numerator,
+                        denominator,
+                    )
+                    .await?
+                }
+                ProposalSubmitCommand::SetSuspensionThreshold {
+                    signer,
+                    title,
+                    description,
+                    numerator,
+                    denominator,
+                } => {
+                    proposal::submit_set_suspension_threshold(
+                        &cli.url,
+                        signer,
+                        title,
+                        description,
+                        numerator,
+                        denominator,
+                    )
+                    .await?
+                }
+                ProposalSubmitCommand::UpgradeRuntime {
+                    signer,
+                    title,
+                    description,
+                    code_hash,
+                } => {
+                    proposal::submit_upgrade_runtime(
+                        &cli.url,
+                        signer,
+                        title,
+                        description,
+                        &code_hash,
+                    )
+                    .await?
+                }
+            },
+            ProposalCommand::UploadRuntimeCode { signer, code_path } => {
+                proposal::upload_runtime_code(&cli.url, signer, &code_path).await?
             }
             ProposalCommand::Vote {
                 signer,
                 proposal_id,
                 approve,
             } => proposal::vote(&cli.url, signer, proposal_id, approve.as_bool()).await?,
-            ProposalCommand::Finalize { signer, proposal_id } => {
-                proposal::finalize(&cli.url, signer, proposal_id).await?
-            }
-            ProposalCommand::Execute { signer, proposal_id } => {
-                proposal::execute(&cli.url, signer, proposal_id).await?
-            }
+            ProposalCommand::Finalize {
+                signer,
+                proposal_id,
+            } => proposal::finalize(&cli.url, signer, proposal_id).await?,
+            ProposalCommand::Execute {
+                signer,
+                proposal_id,
+            } => proposal::execute(&cli.url, signer, proposal_id).await?,
         },
         TopCommand::Treasury { command } => match command {
-            TreasuryCommand::Deposit { signer, amount } => treasury::deposit(&cli.url, signer, amount).await?,
+            TreasuryCommand::Deposit { signer, amount } => {
+                treasury::deposit(&cli.url, signer, amount).await?
+            }
         },
         TopCommand::Watch { command } => match command {
             WatchCommand::Proposals {
@@ -372,20 +636,70 @@ mod tests {
             "gaia-tester",
             "proposals",
             "submit",
+            "disbursement",
             "alice",
             "community-event",
             "fund-public-workshop",
+            "bob",
             "500",
-            "240",
         ])
         .expect("proposal submit should parse");
         assert!(matches!(
             cli.command,
             TopCommand::Proposals {
                 command: ProposalCommand::Submit {
+                    command: ProposalSubmitCommand::Disbursement {
+                        signer: Persona::Alice,
+                        recipient: Persona::Bob,
+                        amount: 500,
+                        ..
+                    }
+                }
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_runtime_upgrade_submit_command() {
+        let cli = Cli::try_parse_from([
+            "gaia-tester",
+            "proposals",
+            "submit",
+            "upgrade-runtime",
+            "alice",
+            "upgrade",
+            "apply-new-runtime",
+            "0x0123",
+        ])
+        .expect("runtime-upgrade submit should parse");
+        assert!(matches!(
+            cli.command,
+            TopCommand::Proposals {
+                command: ProposalCommand::Submit {
+                    command: ProposalSubmitCommand::UpgradeRuntime {
+                        signer: Persona::Alice,
+                        ..
+                    }
+                }
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_upload_runtime_code_command() {
+        let cli = Cli::try_parse_from([
+            "gaia-tester",
+            "proposals",
+            "upload-runtime-code",
+            "alice",
+            "runtime/target.wasm",
+        ])
+        .expect("runtime-code upload should parse");
+        assert!(matches!(
+            cli.command,
+            TopCommand::Proposals {
+                command: ProposalCommand::UploadRuntimeCode {
                     signer: Persona::Alice,
-                    amount: 500,
-                    event_block: 240,
                     ..
                 }
             }

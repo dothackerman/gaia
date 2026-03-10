@@ -1,5 +1,12 @@
 use crate::{api, output};
 use anyhow::Result;
+use std::fmt::Write as _;
+
+type GovernanceAction = api::gaia::runtime_types::gaia_proposals::pallet::GovernanceAction<
+    subxt::utils::AccountId32,
+    u128,
+    u32,
+>;
 
 #[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListOrder {
@@ -79,12 +86,12 @@ pub async fn proposals(
         .await?;
 
     let mut out = format!(
-        "Treasury proposals (state={:?}, order={:?})\n",
+        "Proposals (state={:?}, order={:?})\n",
         options.state, options.order
     );
 
     if count == 0 {
-        out.push_str("No treasury proposals found.\n");
+        out.push_str("No proposals found.\n");
         output::print_or_page(&out, options.pager, options.no_pager)?;
         return Ok(());
     }
@@ -112,21 +119,23 @@ pub async fn proposals(
             .await?;
 
         out.push_str(&format!(
-            "#{} status={} title={} amount={} organizer={} yes_votes={} no_votes={} vote_end={}\n",
+            "#{} status={} class={} title={} action={} yes_votes={} no_votes={} submitted_at={} vote_end={} approved_at={}\n",
             id,
             status,
+            proposal_class_label(&record.class),
             title,
-            record.amount,
-            record.organizer,
+            action_summary(&record.action),
             yes_votes,
             no_votes,
+            record.submitted_at,
             record.vote_end,
+            optional_block(record.approved_at),
         ));
         shown = shown.saturating_add(1);
     }
 
     if shown == 0 {
-        out.push_str("No treasury proposals matched this filter.\n");
+        out.push_str("No proposals matched this filter.\n");
     }
 
     output::print_or_page(&out, options.pager, options.no_pager)?;
@@ -152,17 +161,18 @@ pub async fn proposal(url: &str, proposal_id: u32) -> Result<()> {
             let title = api::bounded_to_string(&record.title);
             let description = api::bounded_to_string(&record.description);
             println!(
-                "Proposal #{}: status={:?}, title={}, description={}, amount={}, organizer={}, yes_votes={}, no_votes={}, event_block={}, vote_end={}",
+                "Proposal #{}: status={:?}, class={}, title={}, description={}, action={}, yes_votes={}, no_votes={}, submitted_at={}, vote_end={}, approved_at={}",
                 proposal_id,
                 record.status,
+                proposal_class_label(&record.class),
                 title,
                 description,
-                record.amount,
-                record.organizer,
+                action_summary(&record.action),
                 yes_votes,
                 no_votes,
-                record.event_block,
+                record.submitted_at,
                 record.vote_end,
+                optional_block(record.approved_at),
             );
         }
         None => println!(
@@ -185,7 +195,11 @@ pub async fn memberships(
     let client = api::connect(url).await?;
     let at = client.storage().at_latest().await?;
     let count = at
-        .fetch_or_default(&api::gaia::storage().membership().membership_proposal_count())
+        .fetch_or_default(
+            &api::gaia::storage()
+                .membership()
+                .membership_proposal_count(),
+        )
         .await?;
 
     let mut out = format!(
@@ -215,10 +229,18 @@ pub async fn memberships(
 
         let candidate_name = api::bounded_to_string(&record.name);
         let yes_votes = at
-            .fetch_or_default(&api::gaia::storage().membership().membership_proposal_yes_count(id))
+            .fetch_or_default(
+                &api::gaia::storage()
+                    .membership()
+                    .membership_proposal_yes_count(id),
+            )
             .await?;
         let no_votes = at
-            .fetch_or_default(&api::gaia::storage().membership().membership_proposal_no_count(id))
+            .fetch_or_default(
+                &api::gaia::storage()
+                    .membership()
+                    .membership_proposal_no_count(id),
+            )
             .await?;
 
         out.push_str(&format!(
@@ -253,10 +275,18 @@ pub async fn membership(url: &str, proposal_id: u32) -> Result<()> {
     let maybe = at.fetch(&key).await?;
 
     let yes_votes = at
-        .fetch_or_default(&api::gaia::storage().membership().membership_proposal_yes_count(proposal_id))
+        .fetch_or_default(
+            &api::gaia::storage()
+                .membership()
+                .membership_proposal_yes_count(proposal_id),
+        )
         .await?;
     let no_votes = at
-        .fetch_or_default(&api::gaia::storage().membership().membership_proposal_no_count(proposal_id))
+        .fetch_or_default(
+            &api::gaia::storage()
+                .membership()
+                .membership_proposal_no_count(proposal_id),
+        )
         .await?;
 
     match maybe {
@@ -304,5 +334,59 @@ fn ordered_ids(count: u32, order: ListOrder) -> Box<dyn Iterator<Item = u32>> {
     match order {
         ListOrder::Newest => Box::new((1..=count).rev()),
         ListOrder::Oldest => Box::new(1..=count),
+    }
+}
+
+fn proposal_class_label<T: std::fmt::Debug>(class: &T) -> String {
+    format!("{class:?}").to_lowercase()
+}
+
+fn optional_block(value: Option<u32>) -> String {
+    value
+        .map(|block| block.to_string())
+        .unwrap_or_else(|| "none".to_string())
+}
+
+fn action_summary(action: &GovernanceAction) -> String {
+    match action {
+        GovernanceAction::DisburseToAccount { recipient, amount } => {
+            format!("disburse(recipient={recipient}, amount={amount})")
+        }
+        GovernanceAction::SetProposalVotingPeriod { blocks } => {
+            format!("set_proposal_voting_period(blocks={blocks})")
+        }
+        GovernanceAction::SetExecutionDelay { blocks } => {
+            format!("set_execution_delay(blocks={blocks})")
+        }
+        GovernanceAction::SetStandardApprovalThreshold {
+            numerator,
+            denominator,
+        } => format!("set_standard_threshold({numerator}/{denominator})"),
+        GovernanceAction::SetGovernanceApprovalThreshold {
+            numerator,
+            denominator,
+        } => format!("set_governance_threshold({numerator}/{denominator})"),
+        GovernanceAction::SetConstitutionalApprovalThreshold {
+            numerator,
+            denominator,
+        } => format!("set_constitutional_threshold({numerator}/{denominator})"),
+        GovernanceAction::SetMembershipVotingPeriod { blocks } => {
+            format!("set_membership_voting_period(blocks={blocks})")
+        }
+        GovernanceAction::SetMembershipApprovalThreshold {
+            numerator,
+            denominator,
+        } => format!("set_membership_threshold({numerator}/{denominator})"),
+        GovernanceAction::SetSuspensionThreshold {
+            numerator,
+            denominator,
+        } => format!("set_suspension_threshold({numerator}/{denominator})"),
+        GovernanceAction::UpgradeRuntime { code_hash } => {
+            let mut hex = String::with_capacity(code_hash.len() * 2);
+            for byte in code_hash {
+                let _ = write!(&mut hex, "{byte:02x}");
+            }
+            format!("upgrade_runtime(code_hash=0x{hex})")
+        }
     }
 }
