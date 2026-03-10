@@ -226,11 +226,11 @@ mod tests {
     fn deposit_fee_increases_treasury_balance() {
         new_test_ext().execute_with(|| {
             let treasury_account = Treasury::account_id();
-            let alice_start = Balances::free_balance(&ALICE);
+            let alice_start = Balances::free_balance(ALICE);
             assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(ALICE), 50));
             assert_eq!(TreasuryBalance::<Test>::get(), 50);
-            assert_eq!(Balances::free_balance(&treasury_account), 50);
-            assert_eq!(Balances::free_balance(&ALICE), alice_start - 50);
+            assert_eq!(Balances::free_balance(treasury_account), 50);
+            assert_eq!(Balances::free_balance(ALICE), alice_start - 50);
         });
     }
 
@@ -248,26 +248,26 @@ mod tests {
     fn disburse_reduces_balance_when_funded() {
         new_test_ext().execute_with(|| {
             let treasury_account = Treasury::account_id();
-            let bob_start = Balances::free_balance(&BOB);
+            let bob_start = Balances::free_balance(BOB);
             assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(ALICE), 100));
             assert_ok!(Treasury::disburse(RuntimeOrigin::root(), BOB, 40));
             assert_eq!(TreasuryBalance::<Test>::get(), 60);
-            assert_eq!(Balances::free_balance(&treasury_account), 60);
-            assert_eq!(Balances::free_balance(&BOB), bob_start + 40);
+            assert_eq!(Balances::free_balance(treasury_account), 60);
+            assert_eq!(Balances::free_balance(BOB), bob_start + 40);
         });
     }
 
     #[test]
     fn disburse_rejects_when_insufficient_funds() {
         new_test_ext().execute_with(|| {
-            let bob_start = Balances::free_balance(&BOB);
+            let bob_start = Balances::free_balance(BOB);
             assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(ALICE), 20));
             assert_noop!(
                 Treasury::disburse(RuntimeOrigin::root(), BOB, 50),
                 Error::<Test>::InsufficientFunds
             );
             assert_eq!(TreasuryBalance::<Test>::get(), 20);
-            assert_eq!(Balances::free_balance(&BOB), bob_start);
+            assert_eq!(Balances::free_balance(BOB), bob_start);
         });
     }
 
@@ -275,15 +275,15 @@ mod tests {
     fn proposals_treasury_handler_disburses_once_funded() {
         new_test_ext().execute_with(|| {
             let treasury_account = Treasury::account_id();
-            let bob_start = Balances::free_balance(&BOB);
+            let bob_start = Balances::free_balance(BOB);
             assert_ok!(Treasury::deposit_fee(RuntimeOrigin::signed(ALICE), 80));
             assert_ok!(<Treasury as gaia_proposals::TreasuryHandler<
                 AccountId,
                 Balance,
             >>::disburse(&BOB, 30));
             assert_eq!(TreasuryBalance::<Test>::get(), 50);
-            assert_eq!(Balances::free_balance(&treasury_account), 50);
-            assert_eq!(Balances::free_balance(&BOB), bob_start + 30);
+            assert_eq!(Balances::free_balance(treasury_account), 50);
+            assert_eq!(Balances::free_balance(BOB), bob_start + 30);
         });
     }
 
@@ -301,13 +301,13 @@ mod tests {
     #[test]
     fn deposit_fee_rejects_overflow() {
         new_test_ext().execute_with(|| {
-            let alice_start = Balances::free_balance(&ALICE);
+            let alice_start = Balances::free_balance(ALICE);
             TreasuryBalance::<Test>::put(Balance::MAX);
             assert_noop!(
                 Treasury::deposit_fee(RuntimeOrigin::signed(ALICE), 1),
                 Error::<Test>::BalanceOverflow
             );
-            assert_eq!(Balances::free_balance(&ALICE), alice_start);
+            assert_eq!(Balances::free_balance(ALICE), alice_start);
         });
     }
 

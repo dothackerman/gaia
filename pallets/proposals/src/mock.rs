@@ -40,7 +40,7 @@ impl frame_system::Config for Test {
 // ---------------------------------------------------------------------------
 
 thread_local! {
-    static ACTIVE_MEMBERS: RefCell<BTreeSet<u64>> = RefCell::new(BTreeSet::new());
+    static ACTIVE_MEMBERS: RefCell<BTreeSet<u64>> = const { RefCell::new(BTreeSet::new()) };
 }
 
 pub struct MockMembership;

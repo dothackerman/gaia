@@ -519,7 +519,7 @@ fn constitutional_class_threshold_change_end_to_end() {
 fn synthetic_member(seed: u8) -> AccountId {
     let mut bytes = [0u8; 32];
     bytes[0] = seed;
-    AccountId32::new(bytes).into()
+    AccountId32::new(bytes)
 }
 
 // ---------------------------------------------------------------------------

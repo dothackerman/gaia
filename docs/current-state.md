@@ -1,6 +1,6 @@
 # Current build state
 
-Last updated: 2026-03-08 (Waves 1–4 governance milestone integrated).
+Last updated: 2026-03-10 (tester CLI refreshed against current runtime metadata; docs/build state reconciled).
 
 ## Node (`node/`)
 
@@ -47,7 +47,7 @@ Last updated: 2026-03-08 (Waves 1–4 governance milestone integrated).
   - Active-member-gated finalize after deadline rejects if threshold not met
   - Suspension threshold formula is storage-backed: `approvals * d >= others * n` (genesis default `1/1`, preserving ADR-005 unanimity)
 - Trait implementation: `MembershipGovernance` for `gaia-proposals` (Wave 2 wiring contract)
-- Tests: 38 unit tests passing
+- Tests: 41 unit tests passing
 
 ## Pallet: treasury (`pallets/treasury/`)
 
@@ -104,8 +104,8 @@ Last updated: 2026-03-08 (Waves 1–4 governance milestone integrated).
 ## Tester CLI (`tester-cli/`)
 
 - Status: **implemented** (`gaia-tester-cli`)
-- API mode: typed Subxt bindings using committed metadata (`tester-cli/artifacts/gaia.scale`)
-- Tests: 6 parser tests passing
+- API mode: typed Subxt bindings using refreshed committed metadata (`tester-cli/artifacts/gaia.scale`)
+- Tests: 8 parser tests passing
 - Command namespaces:
   - `personas`
   - `memberships`
@@ -116,17 +116,31 @@ Last updated: 2026-03-08 (Waves 1–4 governance milestone integrated).
 - Contract changes:
   - Membership voting targets `proposal_id` (not candidate account)
   - Membership finalize command: `memberships finalize`
-  - Treasury proposal finalize command at CLI level: `proposals finalize` (runtime call is `tally_proposal`)
+  - Proposal submission now uses `proposals submit <typed-action-subcommand> ...`
+  - Runtime-code upload is explicit: `proposals upload-runtime-code <signer> <code_path>`
+  - Proposal finalize command at CLI level: `proposals finalize` (runtime call is `tally_proposal`)
 - Watch UX:
   - `watch proposals [id]`
   - `watch memberships [id]`
   - List defaults: `--state active --order newest`
   - State/order filters supported for lists
+  - Proposal list/detail output now describes `class`, `action`, `submitted_at`, `vote_end`, and `approved_at`
   - Pager behavior:
     - TTY: auto pager
     - non-TTY: raw output
     - uses `$PAGER`, fallback `less -FR`
     - explicit overrides: `--pager`, `--no-pager`
+  - Typed proposal subcommands:
+    - `disbursement`
+    - `set-proposal-voting-period`
+    - `set-execution-delay`
+    - `set-membership-voting-period`
+    - `set-standard-threshold`
+    - `set-governance-threshold`
+    - `set-constitutional-threshold`
+    - `set-membership-threshold`
+    - `set-suspension-threshold`
+    - `upgrade-runtime`
 
 ## Governance hardening status
 
@@ -148,13 +162,13 @@ Last updated: 2026-03-08 (Waves 1–4 governance milestone integrated).
 | Command | Status |
 |---|---|
 | `cargo check` | pass |
-| `cargo clippy` | pass (existing node-template warnings remain) |
-| `cargo test` | pass (168 tests total) |
+| `cargo clippy --workspace --all-targets -- -D warnings` | pass |
+| `cargo test` | pass (170 tests total) |
 | `cargo build` | pass |
 
 ## Upstream warnings
 
-- Node-template clippy warning family remains in `node/` (`clippy::result_large_err`).
+- `gaia-runtime`: build warns that stable Rust now supports `wasm32v1-none`; the workspace still builds Wasm with `wasm32-unknown-unknown`.
 - `polkadot-overseer`: cycle-detection informational output during build.
 - `trie-db v0.30.0`: future-incompatibility warning from upstream dependency.
 
