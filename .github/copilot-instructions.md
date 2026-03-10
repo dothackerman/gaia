@@ -18,6 +18,18 @@ cargo check   →   cargo clippy   →   cargo test   →   cargo build
 
 `cargo check` must pass before any other command is run.
 
+## Git closure rule
+
+- In a single-agent session on `main`, once a coherent change slice passes the
+  full quality loop (`cargo check` → `cargo clippy` → `cargo test` →
+  `cargo build`), commit it immediately and push it immediately.
+- Do not wait for the operator to repeat the commit/push expectation in each
+  session. Default to git closure after green, reviewable work unless the
+  operator explicitly says not to commit or not to push.
+- If unrelated edits are present in the working tree, isolate your own slice by
+  selective staging or multiple commits rather than leaving verified work local
+  only.
+
 ## Code quality rules
 
 - Write tests for every public pallet function. Unit tests live in the same file

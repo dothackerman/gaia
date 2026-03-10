@@ -289,4 +289,13 @@ directly (no parallelism risk).
 - Push each clean, meaningful commit promptly (avoid local commit pileups).
 - Never end a task with relevant local-only commits not pushed.
 - Never batch unrelated changes into one commit.
-
+- In a single-agent session on `main`, the default expectation is: once a
+  coherent change slice passes the full quality loop (`cargo check` →
+  `cargo clippy` → `cargo test` → `cargo build`), commit it immediately and
+  push it immediately.
+- Do **not** wait for the operator to restate the commit/push expectation each
+  session. Treat green, coherent work as ready for git closure unless the
+  operator explicitly says not to commit or not to push.
+- If the working tree contains unrelated changes, isolate your slice with
+  selective staging or multiple commits. The presence of unrelated edits is not
+  an excuse to leave your own verified work local-only.
