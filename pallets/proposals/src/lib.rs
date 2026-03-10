@@ -92,9 +92,9 @@ pub mod pallet {
     pub enum ProposalStatus {
         /// Voting window is open.
         Active,
-        /// Tally passed (yes > no); awaiting execution.
+        /// Tally met the class-specific approval threshold; awaiting execution.
         Approved,
-        /// Tally failed (yes ≤ no).
+        /// Tally failed to meet the class-specific approval threshold.
         Rejected,
         /// Disbursement completed — terminal state.
         Executed,
@@ -441,9 +441,9 @@ pub mod pallet {
             voter: T::AccountId,
             approve: bool,
         },
-        /// Tally completed with a yes majority — proposal is approved.
+        /// Tally completed with a class-specific threshold pass — proposal is approved.
         ProposalApproved { proposal_id: ProposalId },
-        /// Tally completed without a yes majority — proposal is rejected.
+        /// Tally completed without meeting the class-specific threshold — proposal is rejected.
         ProposalRejected { proposal_id: ProposalId },
         /// An approved proposal was executed and funds disbursed.
         ProposalExecuted { proposal_id: ProposalId },
@@ -620,7 +620,8 @@ pub mod pallet {
         /// Tally the votes on a proposal after its voting window has closed.
         ///
         /// Anyone may call this. The proposal must be Active and the voting
-        /// window must have ended. Simple majority (yes > no) → Approved.
+        /// window must have ended. Approval uses the class-specific stored
+        /// threshold against total votes cast.
         #[pallet::call_index(2)]
         #[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(3, 1))]
         pub fn tally_proposal(origin: OriginFor<T>, proposal_id: ProposalId) -> DispatchResult {

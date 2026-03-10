@@ -41,9 +41,11 @@ classDiagram
     class Proposal {
         title
         description
-        requestedAmount
-        organizer
-        eventDate
+        class: standard | governance | constitutional
+        action
+        submittedAt
+        approvedAt?
+        voteEnd
         status: active | approved | rejected | executed
     }
 
@@ -82,7 +84,7 @@ classDiagram
 | **Member** | A storage record, not a token. The record itself *is* the proof of voting rights. |
 | **CommunityToken** | The only true token in the system. Everything else (members, proposals, votes) is a data record. |
 | **Treasury** | Always denominated in CommunityToken. Balance invariant: never negative. |
-| **Proposal** | A lifecycle entity (active → approved/rejected → executed). Never a token. |
+| **Proposal** | A lifecycle entity (active → approved/rejected → executed) carrying a typed governance action. Never a token. |
 | **Vote** | One signal per member per proposal. Equal weight — no quadratic or stake-weighted voting. |
 | **MemberFeePayment** | The funding mechanism: member fees flow into the treasury, proposals flow out. |
 
@@ -95,9 +97,11 @@ classDiagram
   secondary staking or reward token.
 - **Records over tokens.** Members, proposals, and votes are storage records
   with lifecycle states — not NFTs, not transferable assets.
+- **Typed governance actions.** Proposals are no longer only treasury-withdrawal
+  records; they can also govern thresholds, voting periods, execution delay,
+  membership parameters, and runtime upgrades.
 - **Implementation simplifications vs. domain.** The domain describes a
   `pending` member status and `draft`/`disputed` proposal states as aspirational
   concepts. The current implementation omits them: candidates awaiting admission
-  are stored separately in `Candidates` storage (not as `pending` members), and
-  proposals are submitted directly into the `Active` state with no draft or
-  dispute phase.
+  move through explicit membership proposals, and proposals are submitted
+  directly into the `Active` state with no draft or dispute phase.

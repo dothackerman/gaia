@@ -19,6 +19,12 @@ upgrades, and governance.
   (`memberships propose` -> `memberships vote` -> `memberships finalize`).
 - Membership proposals are ID-based and time-bounded (`vote_end` deadline).
 - Only active members can submit proposals, vote, and finalize membership proposals.
+- Governance proposals are **classed** (`Standard`, `Governance`, `Constitutional`)
+  and carry typed on-chain actions.
+- Proposal execution enforces an on-chain execution delay before approved
+  actions can run.
+- Runtime upgrades are governable through runtime-code upload plus a
+  constitutional `UpgradeRuntime` proposal.
 - Any signed account can currently deposit funds into treasury.
 - The local tester CLI uses seeded personas (`Alice` through `Ferdie`) for
   deterministic local testing.
@@ -43,18 +49,22 @@ Proposals: submit -> vote -> finalize -> execute (once)
 
 1. Members are admitted on-chain through peer voting.
 2. Treasury holds community funds and enforces non-negative balance.
-3. Proposals let active members request spends from treasury.
+3. Proposals let active members request spends, govern runtime parameters, and approve runtime upgrades.
 
 ## Governance note (known limitation)
 
-Current voting thresholds are intentionally simple and need hardening:
+Current governance is materially stronger than the original simple-majority
+model, but one hardening gap remains:
 
-- Treasury proposals: approval is `yes > no` at finalize time (no quorum yet).
-- Membership proposals: approval is `>= 80%` of a submit-time active-member
-  snapshot (no quorum/turnout guard yet).
-- Suspension by peers: unanimity of all other active members.
+- Standard proposals default to `1/2` of votes cast.
+- Governance proposals default to `4/5` of votes cast.
+- Constitutional proposals default to `9/10` of votes cast.
+- Membership proposals require `>= 4/5` of the submit-time active-member
+  snapshot.
+- Suspension by peers remains unanimity of all other active members.
 
-Future work should formalize quorum/turnout and more robust threshold policy.
+Future work should formalize quorum/turnout so low-participation approvals do
+not slip through a mathematically valid but socially weak tally.
 
 ## Domain model
 
@@ -69,7 +79,7 @@ manual governance flows.
 
 - `personas` — seeded local identities (list/preview)
 - `memberships` — membership proposal governance
-- `proposals` — treasury spending proposal lifecycle
+- `proposals` — classed governance proposal lifecycle
 - `treasury` — treasury deposit actions
 - `watch` — read-only state inspection
 - `local` — local node/metadata helper hints
@@ -81,10 +91,32 @@ cargo run -p gaia-tester-cli -- --help
 cargo run -p gaia-tester-cli -- personas --help
 cargo run -p gaia-tester-cli -- memberships --help
 cargo run -p gaia-tester-cli -- proposals --help
+cargo run -p gaia-tester-cli -- proposals submit --help
 cargo run -p gaia-tester-cli -- treasury --help
 cargo run -p gaia-tester-cli -- watch --help
 cargo run -p gaia-tester-cli -- local --help
 ```
+
+### Concrete proposal CLI surface
+
+- `proposals submit <typed-action-subcommand> ...`
+- `proposals upload-runtime-code <signer> <code_path>`
+- `proposals vote <signer> <proposal_id> <yes|no>`
+- `proposals finalize <signer> <proposal_id>`
+- `proposals execute <signer> <proposal_id>`
+
+Current typed action subcommands:
+
+- `disbursement`
+- `set-proposal-voting-period`
+- `set-execution-delay`
+- `set-membership-voting-period`
+- `set-standard-threshold`
+- `set-governance-threshold`
+- `set-constitutional-threshold`
+- `set-membership-threshold`
+- `set-suspension-threshold`
+- `upgrade-runtime`
 
 ### Watch list/detail UX
 
@@ -107,6 +139,14 @@ List options:
 - `--order newest|oldest`
 - `--pager` (force pager)
 - `--no-pager` (disable pager)
+
+Proposal watch output now describes:
+
+- `class`
+- `action`
+- `submitted_at`
+- `vote_end`
+- `approved_at`
 
 Pager behavior:
 
@@ -156,11 +196,11 @@ cargo run -p gaia-tester-cli -- memberships vote bob 1 yes
 cargo run -p gaia-tester-cli -- memberships vote charlie 1 yes
 ```
 
-5. Treasury proposal example:
+5. Standard disbursement proposal example:
 
 ```bash
 cargo run -p gaia-tester-cli -- treasury deposit alice 1000
-cargo run -p gaia-tester-cli -- proposals submit alice "workshop" "fund-local-event" 10 240
+cargo run -p gaia-tester-cli -- proposals submit disbursement alice "workshop" "fund-local-event" bob 10
 cargo run -p gaia-tester-cli -- proposals vote bob 1 yes
 cargo run -p gaia-tester-cli -- proposals vote charlie 1 yes
 cargo run -p gaia-tester-cli -- watch proposals 1
@@ -168,6 +208,20 @@ cargo run -p gaia-tester-cli -- watch proposals 1
 cargo run -p gaia-tester-cli -- proposals finalize alice 1
 cargo run -p gaia-tester-cli -- proposals execute alice 1
 cargo run -p gaia-tester-cli -- watch treasury
+```
+
+6. Governance parameter example:
+
+```bash
+cargo run -p gaia-tester-cli -- proposals submit set-execution-delay alice "delay" "slow-down-execution" 20
+```
+
+7. Runtime-upgrade flow:
+
+```bash
+cargo run -p gaia-tester-cli -- proposals upload-runtime-code alice path/to/runtime.compact.compressed.wasm
+# capture the reported code hash, then:
+cargo run -p gaia-tester-cli -- proposals submit upgrade-runtime alice "runtime-upgrade" "apply-new-runtime" 0x<code-hash>
 ```
 
 ### Metadata artifact refresh
@@ -192,7 +246,7 @@ cargo build -p gaia-tester-cli
 |---|---|
 | `pallets/membership/` | Member registry and membership proposal governance |
 | `pallets/treasury/` | Community funds: deposits and disbursements |
-| `pallets/proposals/` | Treasury proposal lifecycle |
+| `pallets/proposals/` | Typed governance proposal lifecycle |
 | `runtime/` | Runtime wiring and constants |
 | `node/` | Substrate node binary |
 | `tester-cli/` | Subxt-based local tester CLI |
@@ -207,4 +261,3 @@ All three GAIA pallets are implemented and runtime-wired. See
 
 If you are an AI coding agent, read [`AGENTS.md`](AGENTS.md) before writing
 code. It defines invariants and contribution constraints.
-
